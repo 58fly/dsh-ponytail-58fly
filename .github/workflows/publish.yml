@@ -46,9 +46,10 @@ jobs:
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
 
-      - name: 全部断言与校验
-        run: pnpm test
-
+      # 这里刻意不单跑 pnpm test。lib/ 是 tsc 的构建产物并被 .gitignore 排除，
+      # 干净检出里没有它，而 test/*.mjs 有 16 个文件从 ../lib/ 导入——单跑必然 18 条全红。
+      # 测试由 prepublishOnly 的第六道门在 build 之后跑，那才是正确的顺序；
+      # 在这里再跑一遍只会把一个假的顺序依赖引进来。
       - name: 发布到 npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
