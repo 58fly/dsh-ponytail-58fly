@@ -1,0 +1,19 @@
+# dsh-ponytail-58fly 的 bundle patch。
+#
+# 宿主 dsh-app-boot 按 package.json#dsh.bundle.patch 找到本文件，把它叠进 profile
+# 的配置图（bundle 层先应用，用户自己的 cordis.patch.yml 后应用）。
+#
+# id 与 package.json#name 的关系：id 是配置图里的条目名，name 是 npm 包名。
+# 两者在本项目里刻意取同一个值，这样设置面板的命名空间、配置目录名、
+# 槽位 key 三处不会漂移（见 src/l0/paths.ts 的 PLUGIN_ID）。
+#
+# skillDir：${package} 是本包自带的标记（src/l0/paths.ts 的 PACKAGE_ROOT_TOKEN），
+# 由插件在运行时解析成**这份安装自己的** skills/ 目录。之所以不写裸相对路径：
+# 裸相对路径按 $DSH_HOME 解析，会落到 $DSH_HOME/node_modules/… 这个并不存在的位置；
+# 而宿主读 bundle patch 时不做变量展开，也写不成绝对路径。用户要换技能目录时
+# 在自己 profile 的 cordis.patch.yml 里覆盖这个值即可（用户层优先级更高）。
+- insert:
+    - id: ponytail-58fly
+      name: "dsh-ponytail-58fly"
+      config:
+        skillDir: "${package}/skills"

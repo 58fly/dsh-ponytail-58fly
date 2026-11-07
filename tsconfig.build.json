@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    // 声明文件单独进 lib/types/，与官方插件包的结构一致
+    // （如 @deepseek-ai/dsh-skill 是 lib/index.js + lib/types/index.d.ts）。
+    // 混在同一层会让 "lib/ 里只有运行时产物" 这条纯度检查失效。
+    "declarationDir": "lib/types",
+    "sourceMap": true,
+    "outDir": "lib",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["lib", "node_modules", "test", "src/client/**/*"]
+}

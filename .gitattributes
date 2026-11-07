@@ -1,0 +1,3 @@
+# 关闭所有 EOL 转换：skills/ 是上游 DietrichGebert/ponytail 的逐字镜像，
+# docs/research/ 里记的是逐字节比对的结论。任何 CRLF 改写都会让这些证据失效。
+* -text

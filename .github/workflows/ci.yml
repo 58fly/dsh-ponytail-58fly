@@ -1,0 +1,365 @@
+# 四类检查，各自回答一个不同的问题：
+#
+#   quality  —— 在当前 dsh（0.2.2-rc.1）上，四条链路是否全绿：typecheck / build / verify / test。
+#   compat   —— 在 engines.dsh 声明的整个范围上（0.2.0-rc.1 … 0.2.2-rc.1，共 15 个已发布版本）
+#               逐格跑四条链路，并在每格真装一次、真装配一次。矩阵与 registry 的一致性由
+#               scripts/dsh-matrix.mjs 断言（engines.dsh 改了而本表没跟上 = 红）。
+#               注意 build 必须跑：TS2742（声明文件写出 schemastery 的物理路径）只在旧版
+#               peer 解析把 schemastery 落到 .pnpm 内部时才出现，typecheck 与 test 都看不见它。
+#   install  —— 打出来的包真的装得进一个"像 profile 的目录"吗（tarball / link / assemble 三种形态）。
+#               这一层是唯一能抓住「产物值导入了宿主没给的包」和「files 白名单漏文件」的地方。
+#               assemble 形态额外回答三个问题：装完技能面是否六个都在、切档是否真的改变渲染、
+#               装完再卸是否什么都不剩（$DSH_HOME 装前/装后/卸载后三张快照做差集）。
+#   pack     —— 产物纯度与清单一致性：tarball 里不许出现 src/、test/、.d.ts.map、tsbuildinfo、
+#               不许有 new Function/eval( 这类动态代码执行；cordis.patch.yml 与 package.json/源码一致；
+#               CHANGELOG 顶部版本行与 tarball 版本一致、迁移说明存在。
+#
+# 为什么 install 必须独立成 job 而不能塞进 quality 末尾：
+# 它要跑 pnpm install 到临时目录、要打 tarball，任何一步失败都该让"包不可安装"这个
+# 结论单独可见，而不是被前面某条链路的红叉盖住。
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # 每日 03:17 UTC（北京时间 11:17）跑一次漂移检查。
+  schedule:
+    - cron: '17 3 * * *'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # pnpm 12 是硬要求：pnpm-workspace.yaml 里的 allowBuilds 是 v12 语法，
+  # v10 会当成未知键忽略，esbuild 的 postinstall 不被放行，install 直接失败。
+  PNPM_VERSION: 12.16.1
+
+jobs:
+  quality:
+    name: quality / node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 类型检查
+        run: pnpm run typecheck
+
+      - name: 构建
+        run: pnpm run build
+
+      - name: 产物与仓库纪律检查
+        run: pnpm run verify
+
+      - name: 矩阵覆盖（engines.dsh 区间内的每个已发布版本都得在 compat 里）
+        run: pnpm run check:matrix
+
+      - name: 技能合规（描述长度/调用策略/斜杠写法）
+        run: pnpm run check:skills
+        env:
+          # 漂移检查要查冻结 tree 还在不在；不配 token 会吃 60/小时 的共享限流。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 测试
+        run: pnpm test
+
+  compat:
+    name: compat / dsh ${{ matrix.dsh }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines.dsh 写的是 >=0.2.0-rc.1 <0.2.3-0。这里**穷举** npm 上落在这个区间里的
+        # 全部 15 个版本，而不是抽两格：区间是给用户看的承诺，承诺的每一格都该有人跑过。
+        # 新增版本时由 scripts/dsh-matrix.mjs 从 registry 算出来并断言与本表一致
+        # （见 quality job 的"矩阵已覆盖 registry 全系列"一步）。
+        dsh:
+          - '0.2.0-rc.1'
+          - '0.2.0-rc.2'
+          - '0.2.1-alpha.1'
+          - '0.2.1-alpha.2'
+          - '0.2.1-alpha.3'
+          - '0.2.1-alpha.4'
+          - '0.2.1-alpha.5'
+          - '0.2.1-rc.1'
+          - '0.2.1-rc.2'
+          - '0.2.1-rc.3'
+          - '0.2.1-rc.4'
+          - '0.2.1-rc.5'
+          - '0.2.2-alpha.2'
+          - '0.2.2-alpha.3'
+          - '0.2.2-rc.1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 把 devDependency 切到目标 dsh 版本
+        run: node scripts/set-dsh-version.mjs ${{ matrix.dsh }}
+
+      # 这一刻的 lockfile 已经和 package.json 不一致（版本被上面改过），
+      # frozen 会直接失败。矩阵 job 的目的就是"换版本还能跑"，不复用主分支缓存。
+      - name: 安装依赖
+        run: pnpm install --no-frozen-lockfile
+
+      - name: 类型检查（目标版本的类型面是否仍然成立）
+        run: pnpm run typecheck
+
+      # 这一条是这个 job 存在的主要理由：声明生成会不会把依赖的物理路径写进 .d.ts。
+      - name: 构建（含声明生成，TS2742 的看门人）
+        run: pnpm run build
+
+      - name: 产物纪律
+        run: pnpm run verify
+
+      - name: 测试
+        run: pnpm test
+
+      # 矩阵格子里真正跑一次"装进去 + 装得上 + 六个技能都在 + 切档生效 + 零垃圾"。
+      # 上面四条只证明"这个版本的宿主能编译我们"，证明不了"这个版本的宿主能载入我们"。
+      - name: 打 tarball
+        id: pack
+        run: |
+          npm pack --silent
+          echo "tarball=$(ls -1 *.tgz | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: 真装配（装进去 → 六技能 → 切档 → 零垃圾）
+        env:
+          PT_DSH_VERSION: ${{ matrix.dsh }}
+        run: |
+          node scripts/check-install.mjs --mode assemble --tarball ${{ steps.pack.outputs.tarball }}
+          # 反向用例：把技能目录清空后装配必须报红，证明上面那组断言不是装饰。
+          node scripts/check-install.mjs --mode assemble --selftest
+
+  drift:
+    # 每日问一句"上游技能变了没有"。真源是 DietrichGebert/ponytail 的 skills/
+    # 子树（见 skills/UPSTREAM.json 与 docs/research 的调研笔记）。
+    # 只报警不同步：技能正文是产品内容，跟不跟由人决定；自动 sync 会让人
+    # 半夜收到一条"我们被改了"的提交。
+    name: drift / 上游技能漂移
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 上游漂移检查
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm run check:skills
+
+  install:
+    name: install / ${{ matrix.mode }}
+    runs-on: ubuntu-latest
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        # assemble 是"装进去并真的载入"：只在 quality 用的那个宿主版本上跑，
+        # 全版本的装配由 compat 每格覆盖，这里不重复。
+        mode: [tarball, link, assemble]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建
+        run: pnpm run build
+
+      - name: 打 tarball
+        id: pack
+        run: |
+          npm pack --silent
+          echo "tarball=$(ls -1 *.tgz | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: tarball 形态安装验证
+        if: matrix.mode == 'tarball'
+        run: node scripts/check-install.mjs --mode tarball --tarball ${{ steps.pack.outputs.tarball }}
+
+      - name: link 形态安装验证
+        if: matrix.mode == 'link'
+        run: node scripts/check-install.mjs --mode link
+
+      - name: 真装配验证（装进去 → 六技能 → 切档 → 零垃圾）
+        if: matrix.mode == 'assemble'
+        run: |
+          node scripts/check-install.mjs --mode assemble --tarball ${{ steps.pack.outputs.tarball }}
+          node scripts/check-install.mjs --mode assemble --selftest
+
+  pack:
+    name: pack / 产物纯度
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建
+        run: pnpm run build
+
+      - name: 仓库层产物一致性（files↔产物双向、exports 可解析、patch 与源码一致）
+        run: |
+          # quality job 已经跑过一遍；这里再跑一次是刻意的：pack 是本 job 自己的
+          # 责任面（"发布的字节对不对"），不该只依赖另一个 job 的绿灯。
+          node scripts/verify.mjs
+
+      - name: 检查 tarball 内容
+        run: |
+          npm pack --silent
+          TARBALL=$(ls -1 *.tgz | head -1)
+          echo "检查 $TARBALL"
+          tar -tzf "$TARBALL" | sort > /tmp/pack-list.txt
+          cat /tmp/pack-list.txt
+
+          # 必须有的东西：少一个用户装完就是加载失败。
+          for required in \
+            package/lib/plugin.js \
+            package/lib/client.js \
+            package/lib/types/plugin.d.ts \
+            package/cordis.patch.yml \
+            package/package.json \
+            package/README.md \
+            package/LICENSE
+          do
+            grep -qx "$required" /tmp/pack-list.txt || { echo "缺少 $required"; exit 1; }
+          done
+
+          # 不许有的东西：源码、测试、声明映射、缓存。
+          #
+          # 注意这里必须分成两段判：'\\.(ts|tsx)$' 会连 .d.ts 一起命中（.d.ts 也以 .ts 结尾），
+          # 而 *.d.ts 是必须发布的声明文件。先滤掉 .d.ts 再判后缀，才抓到真的源码泄漏。
+          BAD_OTHER='\.d\.ts\.map$|\.tsbuildinfo$|^package/(src|test|scripts|docs|\.scratch|\.github)/'
+          if grep -Eq "$BAD_OTHER" /tmp/pack-list.txt; then
+            echo "tarball 里混进了不该发布的文件："
+            grep -Eq "$BAD_OTHER" /tmp/pack-list.txt
+            exit 1
+          fi
+          if grep -v '\.d\.ts$' /tmp/pack-list.txt | grep -Eq '\.(ts|tsx)$'; then
+            echo "tarball 里混进了 TypeScript 源码："
+            grep -v '\.d\.ts$' /tmp/pack-list.txt | grep -E '\.(ts|tsx)$'
+            exit 1
+          fi
+
+      - name: 六个技能必须真的打进了 tarball
+        run: |
+          # skills/ 在 files 白名单里，但漏一个目录同样是"装完少条技能"。
+          # 六个名字写死在脚本里（不在这里现算），漏加技能时这里先红。
+          for id in ponytail ponytail-review ponytail-audit ponytail-debt ponytail-gain ponytail-help
+          do
+            grep -qx "package/skills/$id/SKILL.md" /tmp/pack-list.txt || { echo "tarball 缺少 package/skills/$id/SKILL.md"; exit 1; }
+          done
+          grep -qx "package/skills/UPSTREAM.json" /tmp/pack-list.txt || { echo "tarball 缺少 package/skills/UPSTREAM.json"; exit 1; }
+
+      - name: tarball 内不许有动态代码执行
+        run: |
+          # verify 已经在仓库层扫过一遍；这里再扫一次**发出去的那份字节**，
+          # 防的是"构建脚本自己生成 eval"这类只在 tarball 里存在的写法。
+          tar -xzf "$(ls -1 *.tgz | head -1)" -C /tmp/pack-src package
+          if grep -rnE '\bnew[[:space:]]+Function[[:space:]]*\(|(^|[^.[:alnum:]_$])eval[[:space:]]*\(' /tmp/pack-src/package/lib --include='*.js' ; then
+            echo "tarball 的 lib/ 里出现动态代码执行"
+            exit 1
+          fi
+
+      - name: 客户端产物必须是 ModuleLoader 外壳
+        run: |
+          # 挡住"esbuild 忘了包壳、直接把 CJS 写进 lib/client.js"这种回归：
+          # 真浏览器里 __ModuleLoader__ 不认识裸 CJS，插件会静默不出现。
+          head -c 200 lib/client.js
+          grep -q '__ModuleLoader__.load(' lib/client.js
+
+      - name: cordis.patch.yml 必须与源码/包名一致
+        run: |
+          # 卡口③（清单）：patch 被装进宿主后按 id 找插件，id 与包名漂了就是
+          # 「装了但什么都没发生」。这里用装完的那份字节验，不看仓库源文件。
+          node - <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const patch = readFileSync('/tmp/pack-src/package/cordis.patch.yml', 'utf8');
+          const fail = (m) => { console.error(m); process.exit(1); };
+          if (!patch.includes('insert:')) fail('patch 不是 insert: 形状（当前宿主只认 insert）');
+          const block = patch.slice(patch.indexOf('insert:'));
+          if (!block.includes(pkg.name)) fail('patch 里找不到包名 ' + pkg.name);
+          if (!block.includes('ponytail-58fly')) fail('patch 里找不到插件 id ponytail-58fly');
+          // 故意**不**检查 config 段：skillDir 依赖用户的 profile 布局，写死在
+          // bundle patch 里只能对某一种布局成立，用户覆盖又比 patch 优先级高。
+          // 缺省不配 = 只降级不崩（技能面 0 个、阶梯走兜底），这条路有测例。
+          console.log('cordis.patch.yml 与包名/插件 id 一致 ✓');
+          NODE
+
+      - name: 发布说明与实际 tarball 一致
+        run: |
+          # 卡口③（清单）的文档面：CHANGELOG 顶部版本 == package.json 版本，
+          # 迁移文档必须存在（它不进 tarball，是仓内文档，但发出前必须有）。
+          node - <<'NODE'
+          const { readFileSync, existsSync } = require('node:fs');
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const changelog = readFileSync('CHANGELOG.md', 'utf8');
+          const first = changelog.split('\n').find((l) => /^##\s+\[?\d/.test(l)) ?? '';
+          if (!first.includes(pkg.version)) {
+            console.error('CHANGELOG 顶部版本行与 package.json 不符：' + first + ' vs ' + pkg.version);
+            process.exit(1);
+          }
+          if (!existsSync('docs/migration-from-wenaixi.md')) {
+            console.error('缺少 docs/migration-from-wenaixi.md');
+            process.exit(1);
+          }
+          console.log('CHANGELOG 版本 ' + pkg.version + ' 与迁移文档齐备 ✓');
+          NODE

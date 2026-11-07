@@ -1,0 +1,4 @@
+# pnpm 12 起，构建脚本白名单写在 allowBuilds（mapping 形式；旧的 onlyBuiltDependencies 键 install 时不再生效）。
+# esbuild 的 postinstall 只做平台二进制自检，必须放行，否则 pnpm install 以 ERR_PNPM_IGNORED_BUILDS 退出。
+allowBuilds:
+  esbuild: true

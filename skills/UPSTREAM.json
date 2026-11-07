@@ -1,0 +1,18 @@
+{
+  "$comment": "上游真源钉版（#08 定案：冻结 + CI 每日漂移报警，不自动 sync）。skills 树 sha 用 GitHub Trees API 校验，见 scripts/check-skills.mjs。",
+  "repo": "DietrichGebert/ponytail",
+  "version": "v5.3.3",
+  "tag": "7801d06",
+  "head": "96608e0",
+  "tree": "269bc3e0e49c5b2613ea83775f9cade599cc4021",
+  "frozenAt": "2026-10-29",
+  "expectedDirs": [
+    "ponytail",
+    "ponytail-review",
+    "ponytail-audit",
+    "ponytail-debt",
+    "ponytail-gain",
+    "ponytail-help"
+  ],
+  "note": "tag 7801d06 与 HEAD 96608e0 对 skills/ 零差异；tree 是该 tag 下 skills/ 子树的对象 sha，可用 api.github.com/repos/DietrichGebert/ponytail/git/trees/<tree> 直接展开"
+}

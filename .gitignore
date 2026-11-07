@@ -1,0 +1,18 @@
+# 构建产物不入库：安装时由 prepack / prepublishOnly 现构建，
+# 这样 lib/ 永远与 src/ 同步，不会出现「仓库里的产物比源码旧」。
+# 上游把 lib/ 提交进 Git 是为了 GitHub 直装免构建，代价是产物漂移无从审计；
+# 我们改用 tarball + prepublishOnly，从根上消掉这条风险。
+lib/
+node_modules/
+*.tsbuildinfo
+.DS_Store
+*.tgz
+
+# 本地工具留下的痕迹，不入库（会污染 clone 的洁净度）。
+# .scratch/ 只排除缓存：票与规格是本地 issue tracker 的正文，必须入库——
+# 它们是这个仓库的工作记录，删掉就再也复原不了「为什么这么写」。
+.scratch/**/.cache/
+.dsh-mattskillsdeck-cache/
+.dsh-write-probe
+.agent-teams/
+*.log

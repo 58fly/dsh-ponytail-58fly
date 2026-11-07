@@ -1,0 +1,10 @@
+src/
+test/
+docs/
+.scratch/
+scripts/
+tsconfig.json
+tsconfig.build.json
+.github/
+AGENTS.md
+**/*.tsbuildinfo
