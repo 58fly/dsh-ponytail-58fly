@@ -312,6 +312,9 @@ jobs:
         run: |
           # verify 已经在仓库层扫过一遍；这里再扫一次**发出去的那份字节**，
           # 防的是"构建脚本自己生成 eval"这类只在 tarball 里存在的写法。
+          # -C 要求目标目录已存在；CI 的 runner 是干净环境，不先建就报
+          # "tar: /tmp/pack-src: Cannot open: No such file or directory"（首跑实测踩到）。
+          mkdir -p /tmp/pack-src
           tar -xzf "$(ls -1 *.tgz | head -1)" -C /tmp/pack-src package
           if grep -rnE '\bnew[[:space:]]+Function[[:space:]]*\(|(^|[^.[:alnum:]_$])eval[[:space:]]*\(' /tmp/pack-src/package/lib --include='*.js' ; then
             echo "tarball 的 lib/ 里出现动态代码执行"
