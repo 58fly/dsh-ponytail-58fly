@@ -208,3 +208,22 @@ Status: ready-for-agent
 | 04 | 首次发布 0.2.0：发出去、拉到真字节、留档三段证据 | 01、02、03 | 真发出去，并把六道门 / registry 元数据 / 复验三段留档 |
 
 并行与串行：01 与 02 互不等待（写面不重叠：一个是装配探针与自检，一个是清单、说明文档、发布清单），可同时开工；03 要复用 01 长在装配验证里的断言，串在 01 之后；04 是三者齐备后的那一次真实动作，串在 01+02+03 之后。
+
+### local — 2026-11-08T04:30:00Z
+
+规格覆盖的四张实施票已全部 resolved，本规格的交付面全部落地。
+
+| 票 | 状态 | 一句话结果 |
+|---|---|---|
+| 01 宿主看见我们 | resolved | 装配验证输出宿主判定五项 + 四种失败成因独立文案 + 三破一复反向自检（`--selftest` 19/19）；缺陷版先红、正确版后绿两次输出都已留档 |
+| 02 发布前置 | resolved | 安装文档改「按包名装」主线并补 `--profile` 必填（实测缺了报 `required option`）、出处字段齐、发布清单改七道门并修掉 `<(...)` 那条必失败的复验命令 |
+| 03 发布后复验 | resolved | 新建 `scripts/verify-published.mjs`（`pnpm run verify:published`），输入只来自 registry、摘要两侧同源、未发布退非零且不打堆栈；16 条测试，缺陷版 14 pass / 2 fail 后恢复 16/16 |
+| 04 首次发布 | resolved | 0.2.0 于 2026-11-07T19:12:32Z 真发布（`latest = 0.2.0`，账号 58fly），从 registry 拉回字节复验通过，七份证据留档 `docs/releases/0.2.0/`（共 265 行） |
+
+规格里三处按实测修正的地方（留档备查）：
+
+1. **接缝没变**：整份规格只用一条接缝——装配探针起的那棵真 cordis 树挂 `ClientModuleRegistry`。实测补了一条硬顺序：登记服务必须在装载器之后挂，且 `await loader.await()` 之后还要再等一拍（flush 自己也是 queueMicrotask）。
+2. **「平台是网页」只能间接证明**：`resolveMeta` 的返回值里没有 `platform` 字段，它只在内部当门禁。断言写成「`resolveMeta` 非 null」，反向自检把 `platform` 改成 `node` 时必须变红。
+3. **「不是 git 仓库、没有远端」这条前提已失效**：`58fly/dsh-ponytail-58fly` 现在是公开 GitHub 仓库，`main` 上有 commit 与 tag `v0.2.0`。但「不做产地签名」的决定保持——`--provenance` 与「署名信息各项为空」直接冲突，属独立决定。实测 `dist.attestations = null` 证明仍成立。
+
+有一条遗留不属本规格范围：`verify-release` 现在红（tag `v0.2.0` 之后 `README.md` 与 `package.json` 进了变化），处置是发 `0.2.1` 让 tag 追上，不是重打 `v0.2.0`。
