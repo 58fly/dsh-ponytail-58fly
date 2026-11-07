@@ -1,0 +1,74 @@
+npm notice Tarball Contents
+npm notice 1.1kB LICENSE
+npm notice 13.9kB README.md
+npm notice 1.1kB cordis.patch.yml
+npm notice 16.3kB lib/client.js
+npm notice 3.1kB lib/commands/ponytail.js
+npm notice 45B lib/config/events.js
+npm notice 5.8kB lib/config/priority.js
+npm notice 14.5kB lib/config/runtime.js
+npm notice 3.7kB lib/config/schema.js
+npm notice 2.4kB lib/config/volatile.js
+npm notice 7.1kB lib/l0/diagnosis.js
+npm notice 879B lib/l0/errors.js
+npm notice 3.0kB lib/l0/mode.js
+npm notice 6.6kB lib/l0/paths.js
+npm notice 4.6kB lib/l0/within.js
+npm notice 7.5kB lib/plugin.js
+npm notice 4.5kB lib/prompt/fence.js
+npm notice 1.6kB lib/prompt/index.js
+npm notice 8.0kB lib/prompt/ladder.js
+npm notice 5.3kB lib/prompt/notice.js
+npm notice 43B lib/prompt/port.js
+npm notice 2.5kB lib/prompt/prestep.js
+npm notice 240B lib/prompt/render.js
+npm notice 5.5kB lib/prompt/source.js
+npm notice 3.2kB lib/skills/description.js
+npm notice 8.9kB lib/skills/frontmatter.js
+npm notice 12.3kB lib/skills/provider.js
+npm notice 2.6kB lib/state/sessions.js
+npm notice 2.4kB lib/types/commands/ponytail.d.ts
+npm notice 398B lib/types/config/events.d.ts
+npm notice 5.1kB lib/types/config/priority.d.ts
+npm notice 7.8kB lib/types/config/runtime.d.ts
+npm notice 2.2kB lib/types/config/schema.d.ts
+npm notice 2.6kB lib/types/config/volatile.d.ts
+npm notice 4.3kB lib/types/l0/diagnosis.d.ts
+npm notice 815B lib/types/l0/errors.d.ts
+npm notice 3.1kB lib/types/l0/mode.d.ts
+npm notice 3.7kB lib/types/l0/paths.d.ts
+npm notice 2.1kB lib/types/l0/within.d.ts
+npm notice 3.2kB lib/types/plugin.d.ts
+npm notice 2.7kB lib/types/prompt/fence.d.ts
+npm notice 3.0kB lib/types/prompt/index.d.ts
+npm notice 4.9kB lib/types/prompt/ladder.d.ts
+npm notice 2.3kB lib/types/prompt/notice.d.ts
+npm notice 2.6kB lib/types/prompt/port.d.ts
+npm notice 2.6kB lib/types/prompt/prestep.d.ts
+npm notice 909B lib/types/prompt/render.d.ts
+npm notice 2.1kB lib/types/prompt/source.d.ts
+npm notice 2.9kB lib/types/skills/description.d.ts
+npm notice 2.9kB lib/types/skills/frontmatter.d.ts
+npm notice 2.7kB lib/types/skills/provider.d.ts
+npm notice 4.1kB lib/types/state/sessions.d.ts
+npm notice 3.2kB package.json
+npm notice 5.5kB skills/ponytail-audit/SKILL.md
+npm notice 1.9kB skills/ponytail-debt/SKILL.md
+npm notice 2.3kB skills/ponytail-gain/SKILL.md
+npm notice 2.2kB skills/ponytail-help/SKILL.md
+npm notice 5.2kB skills/ponytail-review/SKILL.md
+npm notice 3.7kB skills/ponytail/SKILL.md
+npm notice 713B skills/UPSTREAM.json
+npm notice Tarball Details
+npm notice name: dsh-ponytail-58fly
+npm notice version: 0.2.0
+npm notice filename: dsh-ponytail-58fly-0.2.0.tgz
+npm notice package size: 91.4 kB
+npm notice unpacked size: 242.7 kB
+npm notice shasum: a839091f95cfe37d039f98cc1164bbc627d43468
+npm notice integrity: sha512-eXSKN+32XXunX[...]RUXG87Pz59Zdw==
+npm notice total files: 60
+npm notice
+npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
+npm notice Your package is being processed and may take a few minutes to become available.
++ dsh-ponytail-58fly@0.2.0

@@ -1,0 +1,20 @@
+== 从 registry 拉回真包跑装配四段 + 三形态复验
+命令：node scripts/check-install.mjs --mode assemble --tarball /tmp/pt-pubcheck/dsh-ponytail-58fly-0.2.0.tgz
+
+profile 目录：/var/folders/r7/bvb7c30n2q127rkp8tywkzgc0000gn/T/pt-install-7gTxBw
++ dsh-ponytail-58fly 0.2.0
+
+Done in 175ms using pnpm v12.16.1
+import ok: name=ponytail-58fly inject=["systemPrompt","skills"]
+node_modules/@deepseek-ai 可见：cordis, cordis-plugin-group, cordis-plugin-include, cordis-plugin-loader, cosmokit, dsh-brand, dsh-commands, dsh-llm, dsh-scope, dsh-skill, dsh-skill-filesystem, dsh-system-prompt, dsh-timeout, dsh-typert-protocol, dsh-util-crypto, dsh-util-values, schemastery
+缺省 skillDir：技能 0 个；阶梯正文降级 "阶梯正文不可用"（预期，未配 skillDir 时的兜底）
+技能面：ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review
+四档提示词体量：{"off":0,"lite":1203,"full":1188,"ultra":1206}
+$DSH_HOME 内路径：/cordis.yml
+
+Done in 56ms using pnpm v12.16.1
+卸载后 $DSH_HOME 内路径：（空）
+
+安装形态验证通过（mode=assemble）
+
+exit=0

@@ -1,0 +1,30 @@
+== npm view dsh-ponytail-58fly@0.2.0（registry 元数据，2026-11-08 03:18 抓取）
+name = 'dsh-ponytail-58fly'
+version = '0.2.0'
+dist.shasum = 'a839091f95cfe37d039f98cc1164bbc627d43468'
+dist.integrity = 'sha512-eXSKN+32XXunX0etbQsN3mYZKp3zIIX10SzxyCHrWRlRmf840Aw+EKabhLKIzXpw9Q7O6S8/QRUXG87Pz59Zdw=='
+dist.tarball = 'https://registry.npmjs.org/dsh-ponytail-58fly/-/dsh-ponytail-58fly-0.2.0.tgz'
+dist.fileCount = 60
+dist-tags.latest = '0.2.0'
+maintainers = '58fly <dlyh@vip.qq.com>'
+time.created = '2026-11-07T19:12:32.378Z'
+time.modified = '2026-11-07T19:14:08.756Z'
+
+== npm view dsh-ponytail-58fly dist-tags versions
+{
+  "dist-tags": {
+    "latest": "0.2.0"
+  },
+  "versions": [
+    "0.0.0-stage",
+    "0.2.0"
+  ]
+}
+
+== npm pack 从 registry 拉回真字节
+npm notice
+dsh-ponytail-58fly-0.2.0.tgz
+
+== 本地摘要 vs registry 摘要
+本地 openssl sha1: a839091f95cfe37d039f98cc1164bbc627d43468
+registry shasum:    a839091f95cfe37d039f98cc1164bbc627d43468
