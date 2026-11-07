@@ -1,7 +1,7 @@
 <!-- DSH-LABELS: ready-for-agent -->
 # 规格：把 dsh-ponytail-58fly 0.2.0 发出去，并让「宿主看得见我们」成为机器证据
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
