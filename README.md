@@ -21,27 +21,43 @@ DSH（DeepSeek Harness）插件：懒人模式（ponytail）。给会话注入�
 - DSH `>=0.2.0-rc.1 <0.2.3-0`（`engines.dsh` 是唯一的版本闸门：宿主读 `engines.dsh` 命中后直接 return，不再校验 `peerDependencies`）
 - 宿主提供的两个 peer：`@deepseek-ai/cordis ~4.1.0`、`@deepseek-ai/schemastery ~3.19.0`
 
-**运行时依赖：零。** 这点不是洁癖：`dsh plugin add <本地目录>` 生成的是 `link:`，pnpm 不会安装插件的 `dependencies`，任何运行时 `import` 都会 `ERR_MODULE_NOT_FOUND`。`scripts/verify.mjs` 会把非空的 `dependencies` 判成红灯。
+**运行时依赖：零。** 这点不是洁癖：`dsh plugin --profile <name> add <本地目录>` 生成的是 `link:`，pnpm 不会安装插件的 `dependencies`，任何运行时 `import` 都会 `ERR_MODULE_NOT_FOUND`。`scripts/verify.mjs` 会把非空的 `dependencies` 判成红灯。
 
 ## 部署
 
+三种形态都行，**首选按包名装**：版本号可追溯，插件页的更新提示会显示 `0.2.0` 这样的版本号而不是 commit SHA。
+
 ### 按包名装（推荐）
 
-版本号可追溯，插件页的更新提示会显示 `0.2.0` 这样的版本号而不是 commit SHA：
+把包名交给 profile 的插件管理器。`--profile` 必填，写你的 profile 名——官方模板是 `web` / `headless` / `acp` / `sdk` / `sdk-minimal`；`desktop` 由应用独占，命令行不接管：
 
 ```bash
-npm install dsh-ponytail-58fly
+dsh plugin --profile web add dsh-ponytail-58fly
 ```
 
-装完把 `dsh-ponytail-58fly` 加进 profile `package.json` 的 `dsh.profile.bundles`，重启 DSH。
-宿主侧的插件管理面板里也可以直接按包名安装。
+`dsh plugin` 把剩下的参数原样转给 profile 目录里的 pnpm，成功后**自动**把本包登记进
+`package.json` 的 `dsh.profile.bundles`（判据是发布物里声明了 `dsh.bundle.patch`），不必手工加。
+重启 DSH 生效。
+
+宿主界面里还有两条等价入口：插件管理面板按包名安装；或让 agent 调
+`plugin_manager({ action: "install_bundle", target: "dsh-ponytail-58fly" })`。
+
+> 装的时候 pnpm 可能提示 `Agent skills awaiting approval: dsh-ponytail-58fly`。
+> 那是 pnpm 12.11 起的新行为：它把依赖包自带的 `skills/<名字>/SKILL.md` 链进**编码 agent** 的技能目录
+> （`.claude/skills` 一类，目录由 `skills.dirs` 决定），不批准就一直不链。
+> 本插件的六个技能由 DSH 自己的技能注册表读包内 `skills/`，**不经过这条链路**，
+> 所以批不批准都不影响 Ponytail 能不能用。
+
+> 如果你不走 `dsh plugin`，而是在 profile 目录里直接 `npm install dsh-ponytail-58fly`，
+> 那就得手工把包名写进同一份 `package.json` 的 `dsh.profile.bundles` 再重启——
+> 这一步是 `npm install` 不做的，不是本插件的额外要求。
 
 ### 离线 / 内网：从 tarball 装
 
 ```bash
 pnpm run build
-npm pack
-dsh plugin add ./dsh-ponytail-58fly-0.2.0.tgz
+npm pack                                    # 产物落在当前目录
+dsh plugin --profile web add ./dsh-ponytail-58fly-0.2.0.tgz
 ```
 
 **这条路的已知边界**：tarball 手工安装不会替你把对等依赖补装进来。
@@ -53,7 +69,7 @@ dsh plugin add ./dsh-ponytail-58fly-0.2.0.tgz
 ### 从本地目录装（开发时）
 
 ```bash
-dsh plugin add /path/to/dsh-ponytail-58fly
+dsh plugin --profile <name> add /path/to/dsh-ponytail-58fly
 ```
 
 生成的是 `link:`，pnpm 不会安装插件的 `dependencies`——所以「零运行时依赖」不只是洁癖，
@@ -122,19 +138,26 @@ pnpm run verify      # 产物纯度 / 分层方向 / 零断言 / files 白名单
 pnpm run check:skills # 技能描述长度、调用策略、斜杠写法、上游漂移
 pnpm run check:matrix # compat 矩阵是否覆盖 engines.dsh 区间内每个已发布版本
 pnpm test            # node --test test/*.test.mjs（含真 Cordis 组合测试）
+
+pnpm run verify:release   # 发布后：GitHub tag / 本地 package.json / registry latest 三方对齐
+pnpm run verify:published # 发布后：从 registry 拉回真字节复验（不读本地 .tgz）
 ```
 
-`prepublishOnly` 串起以上全部，任何一步红灯都不允许发布。
+前六条由 `prepublishOnly` 串起来，任何一步红灯都不允许发布。后两条只能在发布之后跑，
+所以刻意不进钩子——发布前那个版本在 registry 上必然不存在，放进钩子只会假红。
 
-### 三道发布卡口
+### 发布卡口
 
 | 卡口 | 脚本 | 抓住什么 |
 | --- | --- | --- |
 | 安装形态 | `scripts/check-install.mjs --mode tarball\|link` | 包能不能装进一个像 profile 的目录 |
-| 真装配 | `scripts/check-install.mjs --mode assemble` | 装进去后宿主能不能载入、六个技能在不在、切档是否生效、`$DSH_HOME` 有没有残渣 |
+| 真装配 | `scripts/check-install.mjs --mode assemble` | 装进去后宿主能不能载入、六个技能在不在、切档是否生效、`$DSH_HOME` 有没有残渣；以及**宿主自己**认不认我们是网页客户端模块（模块图里有我们这一行、按包名取得到产物、产物就是包里那一份） |
 | 产物纯度 | `scripts/verify.mjs` | 运行时只导入宿主公开面（不含子路径）、无 `new Function`/`eval`、声明与磁盘一致、源码零写盘 |
+| 发布后复验 | `scripts/verify-published.mjs`（`pnpm run verify:published`） | **别人从 registry 装到的**那份字节：自己去 registry 拉包、核对 `shasum`/`integrity`、再拿这份字节跑一遍真装配与宿主发现断言。不读本地 `.tgz`，所以本地包再绿也不能替它作证 |
 
-三条都自带反向用例（`--selftest`）：把断言喂给人为构造的脏输入，证明它会红。
+前三条都自带反向用例（`--selftest`）：把断言喂给人为构造的脏输入，证明它会红。
+`verify:published` 的反向用例在 `test/verify-published.test.mjs` 里——一个**还没发布**的版本号、
+一个端口已关的假 registry、一对摘要对不上的包，各自必须红在正确的结论上。
 一个没法演示失败用例的卡口不是卡口，只是注释。
 
 另有一道**发布面**卡口在 CI 的 `pack` job 里，扫的是 `npm pack` 出来的那份字节而不是仓库源文件：

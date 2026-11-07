@@ -1,0 +1,43 @@
+== 发布账号与登录态（2026-11-08 抓取）
+
+--- 本机包管理器身份
+npm 二进制：/Users/sunkai/.hermes/node/bin/npm  (npm 10.9.8)
+npm whoami：58fly
+
+--- 包名所有权（registry 侧）
+{
+  "maintainers": [
+    "58fly <dlyh@vip.qq.com>"
+  ],
+  "version": "0.2.0",
+  "dist-tags": {
+    "latest": "0.2.0"
+  }
+}
+
+--- 署名与产地签名
+{
+  "shasum": "a839091f95cfe37d039f98cc1164bbc627d43468",
+  "tarball": "https://registry.npmjs.org/dsh-ponytail-58fly/-/dsh-ponytail-58fly-0.2.0.tgz",
+  "fileCount": 60,
+  "integrity": "sha512-eXSKN+32XXunX0etbQsN3mYZKp3zIIX10SzxyCHrWRlRmf840Aw+EKabhLKIzXpw9Q7O6S8/QRUXG87Pz59Zdw==",
+  "signatures": [
+    {
+      "sig": "MEUCIQDN+jSv1i1t4ZRt8ULrhW89Dvd3Pe0bQb/evHzC5BMlrAIgVd0+ijOfIk1UmK9arSda/JCtJ0FjPYV/yAckdiNaQuM=",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    {
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+      "sig": "MEYCIQCpJtvP5mh9UD8Gn04vHjgWm+0/J6nS181Dp7lRpzwFVwIhANbbeKEWRe6n7c8JrRDWHoHRFB8gOwPjCSQWMtD/7cTX"
+    }
+  ],
+  "unpackedSize": 242701
+}
+
+--- registry 原始文档（0.2.0）
+dist 键：shasum, tarball, fileCount, integrity, signatures, unpackedSize
+dist.attestations = null
+_npmUser = {"name":"58fly","email":"dlyh@vip.qq.com"}
+
+读法：dist.signatures 是 registry 对每个包自己的完整性签名，人人都有，不是产地签名；
+      dist 里没有 attestations（值为 null）才表示这次发布没有 provenance 产地签名。

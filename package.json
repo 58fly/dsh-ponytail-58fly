@@ -76,6 +76,7 @@
     "check:matrix": "node scripts/dsh-matrix.mjs --check",
     "measure": "node scripts/measure-prompt.mjs",
     "verify:release": "node scripts/verify-release.mjs --verify",
+    "verify:published": "node scripts/verify-published.mjs",
     "test": "node --test test/*.test.mjs",
     "prepublishOnly": "pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs"
   },
