@@ -290,7 +290,8 @@ jobs:
           #
           # 注意这里必须分成两段判：'\\.(ts|tsx)$' 会连 .d.ts 一起命中（.d.ts 也以 .ts 结尾），
           # 而 *.d.ts 是必须发布的声明文件。先滤掉 .d.ts 再判后缀，才抓到真的源码泄漏。
-          BAD_OTHER='\.d\.ts\.map$|\.tsbuildinfo$|^package/(src|test|scripts|docs|\.scratch|\.github)/'
+          # assets/ 与 docs/ 同理：README 截图靠 GitHub raw URL 渲染，进 tarball 只是白送体积。
+          BAD_OTHER='\.d\.ts\.map$|\.tsbuildinfo$|^package/(src|test|scripts|docs|assets|\.scratch|\.github)/'
           if grep -Eq "$BAD_OTHER" /tmp/pack-list.txt; then
             echo "tarball 里混进了不该发布的文件："
             grep -Eq "$BAD_OTHER" /tmp/pack-list.txt

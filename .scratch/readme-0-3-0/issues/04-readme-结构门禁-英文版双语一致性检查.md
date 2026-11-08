@@ -10,7 +10,7 @@
 
 **Blocked by:** #03
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] 故意把 README 改到 181 行，`pnpm run check:readme` 报红并指明「超出行数上限」。
 - [ ] 故意加一行 `**小标题**`，报红并指明行号。
@@ -77,5 +77,22 @@ README 的排版规则不再靠人肉遵守，而是一条**可执行的门禁**
 
 ## 验收
 
+## Comments
+
+### local — 2026-11-08T04:04:26.768Z
+已实施并验证。
+
+① 新建 scripts/check-readme.mjs：断言全部抽成纯函数（countLines / findBoldHeadings / findDeepHeadings / extractHeadings / compareHeadings / findLanguageLinks / checkStructure），薄壳只读文件，形态照 check-skills.mjs 的 failures[]+warnings[] 聚合 + 末尾一次性打印 + process.exit；主体包进 main() 并带「直接执行才跑」守卫，避免被单测 import 时产生副作用。挂进 package.json 的 scripts.check:readme 与 prepublishOnly（verify → check:skills → check:readme → check:matrix → test），并加进 ci.yml quality job；ci.yml 与 publish.yml 头部注释里的门禁清单同步补上 check:readme。
+
+② 新建 test/readme-structure.test.mjs，11 条断言（先红后绿），覆盖：行数计数与 wc -l 同口径、末尾无换行不多算一行、加粗小标题识别与互链行豁免、#### 抓取、双语互链（含排除英文版自身的 README.en.md 子串、拒绝指向别人仓库的同名文件）、骨架一致与不一致两种结果、<h2><sub> 与 ## 视为同一层、以及英文版多出 ### 正文小节不判红。
+
+③ 新建 docs/README.en.md（139 行），与中文版骨架逐节对齐 INSTALL / CORE / SKILLS / CONFIG / COMPAT / TROUBLESHOOT / SOURCE，正文按语义压缩而非逐字对照。
+
+实现过程中门禁当场抓到一处真实问题并修掉：中文版第 7 行 tagline `**少写代码，先找现成方案。**` 就是「加粗独占一行当小标题」，已改为普通文本；豁免规则按「该行含 markdown 链接」判（互链行），而不按行号判——位置一改规则就会悄悄失效。
+
+验证：node --test test/*.test.mjs 255 条全绿；pnpm run check:readme 通过（中英双语，骨架一致，上限 180 行）；pnpm run verify 通过（26 源文件 / 97 产物）。commit 2fbc6b8。
+
 
 ## 进度
+
+- 进度：100%（2026-11-08T12:04:26+08:00）：check:readme 门禁 + 英文版落地，双语骨架一致，commit 2fbc6b8

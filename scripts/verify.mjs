@@ -593,9 +593,13 @@ check(
 
 // cordis.patch.yml 是 dsh.bundle.patch 指向的文件，漏了安装直接失败。
 check(coveredBy('cordis.patch.yml'), 'package.json#files 没有覆盖 cordis.patch.yml：dsh.bundle.patch 指向它，装了也起不来。');
+// `assets/` 与前三个同一档：README 的截图靠 GitHub 的 raw URL 渲染，与 tarball 无关。
+// 一旦有人为了让「本地预览图能显示」把它加进 files，包里就凭空多出几 MB 的 PNG——
+// 装插件的人根本用不上，却要为下载体积买单。
 check(
-  !filesField.some((item) => item === 'src/' || item === 'docs/' || item === 'test/'),
-  'package.json#files 不应包含 src/ docs/ test/：它们只是仓库内容，不该进 tarball。',
+  !filesField.some((item) => item === 'src/' || item === 'docs/' || item === 'test/' || item === 'assets/'),
+  'package.json#files 不应包含 src/ docs/ test/ assets/：它们只是仓库内容，不该进 tarball。' +
+    '（README 的图片走 GitHub raw URL 渲染，不需要打进包里。）',
 );
 
 /**
