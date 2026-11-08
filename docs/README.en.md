@@ -9,8 +9,9 @@ Write less code. Reuse what already exists.
 *The smallest change that fully solves the task.*
 
 [![version](https://img.shields.io/npm/v/dsh-ponytail-58fly)](https://www.npmjs.com/package/dsh-ponytail-58fly)
-[![downloads](https://img.shields.io/npm/dt/dsh-ponytail-58fly?color=red)](https://www.npmjs.com/package/dsh-ponytail-58fly)
 [![host](https://img.shields.io/badge/host-DSH%200.2.x-4B8BBE)](https://github.com/deepseek-ai)
+[![skills](https://img.shields.io/badge/skills-6-orange)]()
+[![runtime dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen)]()
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 </div>
@@ -29,8 +30,7 @@ Run `/ponytail` in a session to read the current level. Settings → "Ponytail �
 Offline or behind a firewall, install from a tarball:
 
 ```bash
-pnpm run build
-npm pack                                    # artifact lands in the current directory
+pnpm run build && npm pack
 dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.0.tgz
 ```
 
@@ -54,7 +54,7 @@ The level only sets the **intensity**, never the ladder itself:
 | `off` | Fully off; the session returns to normal development mode |
 | `lite` | Do as asked, plus one line naming the smaller option so the user can choose |
 | `full` | Default. The full ladder |
-| `ultra` | Also challenge the request: rebut whatever does not hold up before starting |
+| `ultra` | Also challenge the request: rebut whatever does not hold up before starting. Best while the requirements are still soft; the price is a slower, chattier session that may overturn a plan you already had |
 
 The ladder lives in a fixed system-prompt section rendered once when the session is born; switching levels appends a `system-reminder` carrying the full instruction set. Switching never invalidates the prompt prefix, so the KV cache survives.
 
@@ -84,20 +84,17 @@ The host's slash gesture regex only accepts ASCII whitespace boundaries. Writing
 
 | Field | Type | Notes |
 | --- | --- | --- |
-| `defaultMode` | `'off' \| 'lite' \| 'full' \| 'ultra'` | Default level; falls back to `full` |
+| `defaultMode` | `enum` | Default level: `off` / `lite` / `full` / `ultra`; falls back to `full` |
 | `skillDir` | `string` | Skill directory. Relative paths resolve against `$DSH_HOME`; defaults to `$DSH_HOME/ponytail-58fly/skills` |
-| `locale` | `'zh' \| 'en'` | Declared in Schemastery; nothing consumes it yet |
+| `locale` | `enum` | Language: `zh` / `en`. Declared in Schemastery; nothing consumes it yet |
 
 None of them carries a default value: Cordis validation fills missing fields with explicit config, and once a default exists "configured" and "never configured" become indistinguishable — the settings panel would lie on the user's behalf.
 
 Three ways to change the level, in precedence order `env > profile patch > built-in fallback`:
 
 ```bash
-# environment variable
+# environment variable: the default level for every new session
 export PONYTAIL_DEFAULT_MODE=ultra
-
-# switch inside a session
-/ponytail ultra
 ```
 
 ```yaml
@@ -108,6 +105,11 @@ export PONYTAIL_DEFAULT_MODE=ultra
         defaultMode: ultra
 ```
 
+```text
+# switch inside a session (not a shell command — type it in the chat box)
+/ponytail ultra
+```
+
 Wrong value that seems to do nothing: the settings panel shows, level by level, which layer is shadowing it and what that layer currently holds.
 
 <h2 align="center"><sub>COMPAT</sub><br>Compatibility</h2>
@@ -115,11 +117,10 @@ Wrong value that seems to do nothing: the settings panel shows, level by level, 
 | Item | Requirement |
 | --- | --- |
 | Node | `>=20` |
-| DSH | `>=0.2.0-rc.1 <0.3.0-0` (`engines.dsh` is the only version gate) |
-| Two peers | `@deepseek-ai/cordis ~4.1.0`, `@deepseek-ai/schemastery ~3.19.0`, both provided by the host |
-| Runtime dependencies | **zero** |
-
-Zero dependencies is not fastidiousness: `dsh plugin add <local dir>` produces a `link:`, pnpm never installs the plugin's `dependencies`, and any runtime `import` fails with `ERR_MODULE_NOT_FOUND`.
+| DSH | `>=0.2.0-rc.1 <0.3.0-0`. `engines.dsh` is the only version gate: the host sees it and skips the peer check entirely, so a wrong host version means the plugin does not install rather than running degraded |
+| Peers | `@deepseek-ai/cordis ~4.1.0`, `@deepseek-ai/schemastery ~3.19.0`, provided by the host; this package neither installs nor bundles them |
+| Deps | **zero**. Not fastidiousness: `dsh plugin add <local dir>` produces a `link:`, pnpm never installs the plugin's `dependencies`, and any runtime `import` fails with `ERR_MODULE_NOT_FOUND`. That is why the six skills come from the package's own `skills/` through the host registry, and this package imports nothing |
+| Inject | Two `@deepseek-ai/dsh-client-ui-*` modules; without them the only loss is the settings panel — commands and config keep working |
 
 <h2 align="center"><sub>TROUBLESHOOT</sub><br>Troubleshooting</h2>
 

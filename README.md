@@ -9,8 +9,9 @@
 *The smallest change that fully solves the task.*
 
 [![版本](https://img.shields.io/npm/v/dsh-ponytail-58fly?label=%E7%89%88%E6%9C%AC)](https://www.npmjs.com/package/dsh-ponytail-58fly)
-[![下载量](https://img.shields.io/npm/dt/dsh-ponytail-58fly?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=red)](https://www.npmjs.com/package/dsh-ponytail-58fly)
 [![宿主](https://img.shields.io/badge/%E5%AE%BF%E4%B8%BB-DSH%200.2.x-4B8BBE)](https://github.com/deepseek-ai)
+[![技能](https://img.shields.io/badge/%E6%8A%80%E8%83%BD-6%20%E4%B8%AA-orange)]()
+[![依赖](https://img.shields.io/badge/%E8%BF%90%E8%A1%8C%E6%97%B6%E4%BE%9D%E8%B5%96-0-brightgreen)]()
 [![许可](https://img.shields.io/badge/%E8%AE%B8%E5%8F%AF-MIT-green)](LICENSE)
 
 </div>
@@ -29,8 +30,7 @@ dsh plugin --profile web add dsh-ponytail-58fly
 离线或内网从 tarball 装：
 
 ```bash
-pnpm run build
-npm pack                                    # 产物落在当前目录
+pnpm run build && npm pack
 dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.0.tgz
 ```
 
@@ -54,7 +54,7 @@ dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.0.tgz
 | `off` | 完全关闭，本会话恢复普通开发模式 |
 | `lite` | 按要求做，另附一行「更小的选项」让用户自己挑 |
 | `full` | 默认。完整阶梯 |
-| `ultra` | 额外质疑需求本身：动手前先反驳需求不成立的部分 |
+| `ultra` | 额外质疑需求本身：动手前先反驳需求不成立的部分。适合需求还没定形的时候，代价是更慢、更啰嗦、可能推翻你已经想好的方案 |
 
 阶梯进 system prompt 的固定段，只在会话诞生时渲染一次；切档走尾部 `system-reminder` 注入完整指令。切档不会让整个提示词前缀失效，KV cache 不报废。
 
@@ -84,20 +84,17 @@ dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.0.tgz
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
-| `defaultMode` | `'off' \| 'lite' \| 'full' \| 'ultra'` | 默认档位，缺省 `full` |
+| `defaultMode` | `enum` | 默认档位：`off` / `lite` / `full` / `ultra`，缺省 `full` |
 | `skillDir` | `string` | 技能目录。相对路径按 `$DSH_HOME` 解析，缺省 `$DSH_HOME/ponytail-58fly/skills` |
-| `locale` | `'zh' \| 'en'` | Schemastery 已声明，当前无消费点 |
+| `locale` | `enum` | 语言：`zh` / `en`。Schemastery 已声明，当前无消费点 |
 
 三者都**不给默认值**：Cordis 校验会把缺省 fill 成显式配置，一旦给了默认值，「配过」与「没配过」就不可区分，设置面板会替用户撒谎。
 
 改档位有三条等价路径，优先级 `环境变量 > profile 补丁 > 内置兜底`：
 
 ```bash
-# 环境变量
+# 环境变量：影响所有新会话的默认档位
 export PONYTAIL_DEFAULT_MODE=ultra
-
-# session 内即时切换
-/ponytail ultra
 ```
 
 ```yaml
@@ -108,6 +105,11 @@ export PONYTAIL_DEFAULT_MODE=ultra
         defaultMode: ultra
 ```
 
+```text
+# 会话内即时切换（不是 shell 命令，敲在对话框里）
+/ponytail ultra
+```
+
 改错了没生效：设置页的面板逐层显示哪一层盖住了它，以及那一层现在写的是什么。
 
 <h2 align="center"><sub>COMPAT</sub><br>兼容性</h2>
@@ -115,11 +117,10 @@ export PONYTAIL_DEFAULT_MODE=ultra
 | 项 | 要求 |
 | --- | --- |
 | Node | `>=20` |
-| DSH | `>=0.2.0-rc.1 <0.3.0-0`（`engines.dsh` 是唯一的版本闸门） |
-| 两个 peer | `@deepseek-ai/cordis ~4.1.0`、`@deepseek-ai/schemastery ~3.19.0`，由宿主提供 |
-| 运行时依赖 | **零** |
-
-零依赖不是洁癖：`dsh plugin add <本地目录>` 生成的是 `link:`，pnpm 不会安装插件的 `dependencies`，任何运行时 `import` 都会 `ERR_MODULE_NOT_FOUND`。
+| DSH | `>=0.2.0-rc.1 <0.3.0-0`。`engines.dsh` 是唯一的版本闸门：宿主看到它会直接跳过 peer 检查，装错宿主版本就是装不上，不会降级运行 |
+| Peers | `@deepseek-ai/cordis ~4.1.0`、`@deepseek-ai/schemastery ~3.19.0`，由宿主提供，本包不安装也不打包 |
+| Deps | **零**。不是洁癖：`dsh plugin add <本地目录>` 生成的是 `link:`，pnpm 不会安装插件的 `dependencies`，任何运行时 `import` 都会 `ERR_MODULE_NOT_FOUND`。所以六份技能都靠宿主自己的注册表读包内 `skills/`，本包不 `import` 任何东西 |
+| Inject | 两个 `@deepseek-ai/dsh-client-ui-*` 模块，宿主没装就降级为「没有设置面板」，命令与配置照常可用 |
 
 <h2 align="center"><sub>TROUBLESHOOT</sub><br>排障</h2>
 
