@@ -164,11 +164,22 @@ check(
     '这是唯一的版本闸门；下界写死不许悄悄放宽，上界必须显式存在（不能是 `*` 或只有下界）。' +
     '实际是 ' + (enginesDsh || '(空)') + '。',
 );
+/**
+ * 上界不许跨到下一个大版本。
+ *
+ * 只判断「首段是有限数」拦不住 `<1.0.0-0`——它是合法版本号，但语义上等于没写
+ * 上界：谁都没在 1.0 上跑过矩阵。宿主的 0.x 系列里，次版本位（minor）承载
+ * 契约，所以上界最多只能落在落点 version 的下一个 minor 编队里，major 必须
+ * 与本包的宿主下界同一条大版本线上。
+ */
+const upperMajor = upperBound === undefined ? Number.NaN : Number(upperBound.slice(1).split('.')[0]);
+const lowerMajor = Number(LOWER_BOUND.replace(/^>=/, '').split('.')[0]);
 check(
-  upperBound !== undefined && Number.isFinite(Number(upperBound.slice(1).split('-')[0].split('.')[0])),
-  'engines.dsh 的上界必须是一个具体的版本号（形如 `<0.3.0-0`），不能是通配：' +
-    '上界的意义是「我们在这个版本上真跑过矩阵」，写 `<1.0.0-0` 等于没写。' +
-    '实际是 ' + (upperBound ?? '(缺)') + '。',
+  Number.isFinite(upperMajor) && upperMajor === lowerMajor,
+  'engines.dsh 的上界必须留在宿主的同一条大版本线上：本包下界是 ' + LOWER_BOUND +
+    '，上界的 major 段也必须是 ' + (Number.isFinite(lowerMajor) ? lowerMajor : 'N') +
+    '（例如 `<0.3.0-0`）。上界的意义是「我们在这个区间上真跑过矩阵」，' +
+    '跨大版本等于没写上界，而只判断首段是否有限也拦不住它。实际是 ' + (upperBound ?? '(缺)') + '。',
 );
 
 check(

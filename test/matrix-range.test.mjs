@@ -84,3 +84,30 @@ test('classifyMatrixDiff：完全一致时两组都空', () => {
   assert.deepEqual(diff.extra, []);
   assert.equal(diff.ok, true);
 });
+
+// ── engines.dsh 上界守卫（verify.mjs 的判据抽在这里便于离线测）────────────────
+// 背景：上界原先只断言「首段是有限数」，而 `<1.0.0-0` 首段也是有限数，拦不住。
+// 语义上 `<1.0.0-0` 等于没写上界——谁都没在 1.0 上跑过矩阵。
+/** 与 scripts/verify.mjs 同一条判据：上界必须与本包下界同 major。 */
+function upperBoundAccepted(enginesDsh) {
+  const LOWER = '>=0.2.0-rc.1';
+  const clauses = String(enginesDsh).split(/\s+/).filter((clause) => clause !== '');
+  const upper = clauses.find((clause) => clause.startsWith('<'));
+  const upperMajor = upper === undefined ? Number.NaN : Number(upper.slice(1).split('.')[0]);
+  const lowerMajor = Number(LOWER.replace(/^>=/, '').split('.')[0]);
+  return (
+    String(enginesDsh).startsWith(LOWER + ' ') &&
+    upper !== undefined &&
+    Number.isFinite(upperMajor) &&
+    upperMajor === lowerMajor
+  );
+}
+
+test('上界守卫：当前值通过，跨大版本与放水下界都被拦', () => {
+  assert.equal(upperBoundAccepted('>=0.2.0-rc.1 <0.3.0-0'), true);
+  assert.equal(upperBoundAccepted('>=0.2.0-rc.1 <0.4.0-0'), true, '同 major 内抬上界是正常操作，不该红');
+  assert.equal(upperBoundAccepted('>=0.2.0-rc.1 <1.0.0-0'), false, '跨大版本的上界等于没写');
+  assert.equal(upperBoundAccepted('>=0.2.0-rc.1 <2.0.0-0'), false);
+  assert.equal(upperBoundAccepted('>=0.1.0 <0.3.0-0'), false, '放宽下界等于放弃唯一的版本闸门');
+  assert.equal(upperBoundAccepted('>=0.2.0-rc.1'), false, '上界必须显式存在');
+});
