@@ -1,0 +1,37 @@
+=== 0.2.1 发布账号与签名（2026-11-08 实测）===
+
+--- 本机登录态 ---
+npm: /Users/sunkai/.hermes/node/bin/npm (npm 10.9.8)
+npm whoami：58fly
+注：只留账号名，不留凭据。~/.npmrc 的 _authToken 与仓库 secret NPM_TOKEN 都不入库。
+
+--- registry 侧维护者 ---
+{
+  "maintainers": [
+    {
+      "name": "58fly",
+      "email": "dlyh@vip.qq.com"
+    }
+  ],
+  "_npmUser": {
+    "name": "58fly",
+    "email": "dlyh@vip.qq.com"
+  },
+  "signatureKeyIds": [
+    "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+    "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+  ]
+}
+
+--- 解读 ---
+dist.signatures 两条：registry 的完整性签名，任何包都有，不是产地签名。
+dist 里没有 attestations 字段（Object.hasOwn(dist, "attestations") === false，值为 undefined）：
+  没有 provenance 产地签名 —— 与 0.2.0 的 dist.attestations === null 同属「没做产地签名」，决定未变。
+  （两版字段形态不同是 registry 的行为：0.2.0 当时显式给了 null，0.2.1 干脆不带这个键。）
+  背景：spec 原本按「不是 git 仓库、没有远端」排除产地签名；仓库与远端现在都有了，
+        前置条件具备，但这一轮仍不做（改发布方式属于另一次决定，不在补丁版里夹带）。
+
+--- 发布通道 ---
+真发布在 GitHub Actions（.github/workflows/publish.yml，on: push tags [v*]），
+凭据取自仓库 secret NPM_TOKEN（Automation token，账号 58fly，2026-11-07T19:02:23Z 就位）。
+本机 CLI 只用于发版前后的核对，不当发布入口。

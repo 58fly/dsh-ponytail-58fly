@@ -1,0 +1,75 @@
+=== 0.2.1 registry 元数据（2026-11-08 实测）===
+
+--- 本地 npm 与登录态 ---
+npm: /Users/sunkai/.hermes/node/bin/npm (npm 10.9.8)
+npm whoami：58fly
+注：真发布走 GitHub Actions 的 NPM_TOKEN（Automation token，账号 58fly），本机 CLI 只用于核对。
+
+--- 版本与默认标签 ---
+{
+  "version": "0.2.1",
+  "dist-tags": {
+    "latest": "0.2.1"
+  }
+}
+
+--- dist（shasum / integrity / fileCount）---
+{
+  "shasum": "fcda73fe7e97fe4494d253a0c639aee7f91329cf",
+  "tarball": "https://registry.npmjs.org/dsh-ponytail-58fly/-/dsh-ponytail-58fly-0.2.1.tgz",
+  "fileCount": 60,
+  "integrity": "sha512-R3a2iOsHZpMbFR8DGLu8ke2M1mvCzqGhE95vQ5UhQz6N2wq0x7aed4pzG8n5vGHsopQs7eH36U26gejBtJsKuw==",
+  "signatures": [
+    {
+      "sig": "MEYCIQDrcvd/DEy1qtx9d8JkK3aRONJdSsDO6X/hDJyPcdczCQIhANXYhe47CKCrOmaKQUH4HkhM3aL1oJfEt7czVoua/Vss",
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U"
+    },
+    {
+      "keyid": "SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U",
+      "sig": "MEQCIHRkWLXyc0cWulBTdfbrMHzOBOl2w6GtDQ+nLDC0KgFAAiAJEbFvjQuIksF9RAqkNXg7TNYbGCN2yMHirKBFDZbQMg=="
+    }
+  ],
+  "unpackedSize": 245212
+}
+
+--- registry 原始文档关键字段 ---
+{
+  "maintainers": [
+    {
+      "name": "58fly",
+      "email": "dlyh@vip.qq.com"
+    }
+  ],
+  "_npmUser": {
+    "name": "58fly",
+    "email": "dlyh@vip.qq.com"
+  },
+  "time": {
+    "created": "2026-11-07T19:12:32.378Z",
+    "modified": "2026-11-08T02:29:31.957Z",
+    "0.2.1": "2026-11-08T02:29:31.810Z"
+  },
+  "versions": [
+    "0.0.0-stage",
+    "0.2.0",
+    "0.2.1"
+  ],
+  "distTags": {
+    "latest": "0.2.1"
+  }
+}
+
+--- 三方对齐（本地 / tag / registry）---
+  仓库：https://github.com/58fly/dsh-ponytail-58fly
+
+❌ 发布校验失败（1 项）
+
+  - 工作区有 1 处未提交改动，禁止发布
+    → 先 git add -A && git commit，再打 tag、push，最后才发布
+
+铁律：Git 先行，npm 后发。
+
+[ELIFECYCLE] Command failed with exit code 1.
+
+注：dist.signatures 两条是 registry 的完整性签名（任何包都有），dist.attestations 为 null ——
+    即没有 provenance 产地签名，与 0.2.0 一致。

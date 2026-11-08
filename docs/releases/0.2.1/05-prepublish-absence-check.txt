@@ -1,0 +1,39 @@
+=== 0.2.1 发版前「版本不存在」实测与判据 ===
+
+--- 发版前（2026-11-08，打 tag 之前那一刻的真实记录）---
+
+$ npm view dsh-ponytail-58fly@0.2.1 version
+npm error code E404
+npm error 404 No match found for version 0.2.1
+npm error 404  'dsh-ponytail-58fly@0.2.1' is not in this registry.
+退出码：1
+
+当时的 dist-tags：{"latest":"0.2.0"}
+
+--- 现在的复跑（版本已经发出去了，所以变成 0）---
+
+$ npm view dsh-ponytail-58fly@0.2.1 version
+0.2.1
+退出码：0
+
+$ npm view dsh-ponytail-58fly dist-tags --json
+{
+  "latest": "0.2.1"
+}
+
+--- 下一次发版要用的活样本：0.2.2 现在应当仍是 404 ---
+
+$ npm view dsh-ponytail-58fly@0.2.2 version
+npm error code E404
+npm error 404 No match found for version 0.2.2
+npm error 404  'dsh-ponytail-58fly@0.2.2' is not in this registry.
+退出码：1
+
+--- 判据（两次都踩过的坑）---
+「版本不存在」的判据是**退出码 1**，不是看有没有输出：
+  - 版本不存在时 stdout 是空的、错误全在 stderr 的 npm error 行里；
+  - 版本已存在时 stdout 打版本号、退出码 0。
+所以脚本里不能靠「stdout 非空」判存在，要靠退出码。
+
+注：这一段是 0.2.0 时留下的同一处教训（见 docs/releases/0.2.0/07-prepublish-absence-check.txt），
+    当时写成了「stdout 为空」的判断依据，实际要靠退出码。

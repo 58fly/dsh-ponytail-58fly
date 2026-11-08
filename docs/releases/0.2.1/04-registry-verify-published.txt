@@ -1,0 +1,22 @@
+=== 0.2.1 从 registry 拉回真字节复验（pnpm run verify:published）===
+
+口径：不接受本地任何 .tgz 输入 —— 脚本自己按包名问 registry 要 dist、自己拉包、自己核摘要，
+      再把拉回来的那份字节交给 check-install 走装配四段与宿主发现五项。
+
+$ node scripts/verify-published.mjs
+发布后复验：dsh-ponytail-58fly@0.2.1
+registry 记录：shasum=fcda73fe7e97fe4494d253a0c639aee7f91329cf integrity=sha512-R3a2iOsHZpMbFR8DGLu8ke2M1mvCzqGhE95vQ5UhQz6N2wq0x7aed4pzG8n5vGHsopQs7eH36U26gejBtJsKuw==
+下载并核对：dsh-ponytail-58fly-0.2.1.tgz  92407 字节  shasum=fcda73fe7e97fe4494d253a0c639aee7f91329cf  integrity 也一致 ✓
+  技能面：ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review
+  四档提示词体量：{"off":0,"lite":1203,"full":1188,"ultra":1206}
+  宿主判定：模块图按包名找到本包 = true（rev=6d25e21f5ff2）
+  宿主判定：客户端产物路径 = /private/var/folders/r7/bvb7c30n2q127rkp8tywkzgc0000gn/T/pt-install-apLnr9/node_modules/dsh-ponytail-58fly/lib/client.js
+  宿主判定：按包名取到客户端产物 = true
+  宿主判定：平台 = 网页（resolveMeta 非 null 即证明 dsh.client.platform === "web"（平台门禁是它唯一的平台判据））
+  宿主判定：外部依赖 = []（声明 ["@deepseek-ai/dsh-client-ui-settings","@deepseek-ai/dsh-client-ui-renderer"] inject）
+  宿主判定：产物外壳 id = "dsh-ponytail-58fly"
+  安装形态验证通过（mode=assemble）
+
+✅ 复验通过：dsh-ponytail-58fly@0.2.1 从 registry 拉回的真字节可装可用
+
+退出码：0

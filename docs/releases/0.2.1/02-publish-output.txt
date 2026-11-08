@@ -1,0 +1,30 @@
+=== 0.2.1 发布输出（GitHub Actions run 42438625921，workflow publish，由 tag v0.2.1 触发）===
+
+触发：git push origin v0.2.1（on: push tags [v*]）
+runner：node 22 / pnpm 12.16.1 / checkout@v4 fetch-depth 0
+steps：pnpm install --frozen-lockfile → npm publish（NODE_AUTH_TOKEN=secrets.NPM_TOKEN）
+
+--- prepublishOnly 在 CI 里真跑（不是跳过）---
+publish	发布到 npm	2026-11-08T02:27:48.4810497Z > dsh-ponytail-58fly@0.2.1 prepublishOnly
+publish	发布到 npm	2026-11-08T02:27:48.4811604Z > pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs
+
+--- 六道门里的 test 与第七道 verify-release ---
+publish	发布到 npm	2026-11-08T02:27:54.7661367Z # tests 221
+publish	发布到 npm	2026-11-08T02:27:54.7661849Z # pass 221
+publish	发布到 npm	2026-11-08T02:27:54.7662100Z # fail 0
+publish	发布到 npm	2026-11-08T02:27:54.8133974Z ✅ 发布前置检查通过：dsh-ponytail-58fly@0.2.1，tag v0.2.1 已就位
+
+--- npm publish 输出 ---
+publish	发布到 npm	2026-11-08T02:27:55.0325561Z npm notice name: dsh-ponytail-58fly
+publish	发布到 npm	2026-11-08T02:27:55.0325946Z npm notice version: 0.2.1
+publish	发布到 npm	2026-11-08T02:27:55.0326390Z npm notice filename: dsh-ponytail-58fly-0.2.1.tgz
+publish	发布到 npm	2026-11-08T02:27:55.0326874Z npm notice package size: 92.4 kB
+publish	发布到 npm	2026-11-08T02:27:55.0327307Z npm notice unpacked size: 245.2 kB
+publish	发布到 npm	2026-11-08T02:27:55.0327832Z npm notice shasum: fcda73fe7e97fe4494d253a0c639aee7f91329cf
+publish	发布到 npm	2026-11-08T02:27:55.0328504Z npm notice integrity: sha512-R3a2iOsHZpMbF[...]U26gejBtJsKuw==
+publish	发布到 npm	2026-11-08T02:27:55.0329016Z npm notice total files: 60
+publish	发布到 npm	2026-11-08T02:27:55.0330134Z npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
+publish	发布到 npm	2026-11-08T02:27:56.2240565Z + dsh-ponytail-58fly@0.2.1
+
+注：CI 里没有单独的 pnpm test 步骤 —— 测试由 prepublishOnly 的第六道门在 build 之后跑，
+    那才是正确顺序（本地 lib/ 被 .gitignore 排除，干净检出里测试必须先 build）。

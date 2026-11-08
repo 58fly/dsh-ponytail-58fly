@@ -1,0 +1,43 @@
+=== 0.2.1 发布前置七道门（本地实跑，2026-11-08）===
+
+环境：node v22.22.3 / pnpm 12.16.1
+
+--- 第 1 道 typecheck ---
+$ tsc --noEmit
+exit 0
+
+--- 第 2 道 build ---
+client bundle -> lib/client.js (16322 bytes, id=dsh-ponytail-58fly)
+external requires: @deepseek-ai/dsh-client-ui-primitives, react, react/jsx-runtime
+exit 0
+
+--- 第 3 道 verify ---
+warn: skills/ 有 6 个技能目录；内容合规性由 pnpm run check:skills 校验
+verify 通过（26 个源文件，97 个产物文件，1 条提醒）
+exit 0
+
+--- 第 4 道 check:skills ---
+$ node scripts/check-skills.mjs
+warn: 上游 DietrichGebert/ponytail 的 skills/ 已有新提交 ca88b4f（冻结在 7801d06）：review 差异后人工决定是否跟进，并更新 skills/UPSTREAM.json。
+技能校验通过（6 个技能，描述阈值 480/500，1 条提醒）
+exit 0
+
+--- 第 5 道 check:matrix ---
+compat 矩阵覆盖 engines.dsh 区间内全部 15 个版本 ✓
+exit 0
+
+--- 第 6 道 test ---
+# tests 221
+# pass 221
+# fail 0
+# skipped 0
+# duration_ms 1927.96125
+exit 0
+
+--- 第 7 道 verify-release（在 commit 与 tag 之后跑，见「发版」第 4 步）---
+✅ 发布前置检查通过：dsh-ponytail-58fly@0.2.1，tag v0.2.1 已就位
+exit 0
+
+注：第七道刻意不在打 tag 之前跑 —— 它要求 tag 已存在且工作区干净，
+    打 tag 前跑必然红两条（工作区脏 + 本地不存在 tag v0.2.1）。这一版把这条顺序
+    写进了 docs/发布清单.md，原文把它串在发版前的六道门链尾是自相矛盾的。

@@ -1,0 +1,92 @@
+=== 0.2.1 发布后 CI 首跑失败与修复（2026-11-08）===
+
+--- 一、首跑：run 42438624374（push main 触发 ci.yml）---
+
+结论：failure。22 个 job 里 12 个 compat job 全红，其余全绿
+      （quality ×2 / install ×3 / pack 全 success，drift skipped）。
+
+失败 job 清单（12 个，全部是旧宿主格子）：
+  compat / dsh 0.2.0-rc.1    compat / dsh 0.2.0-rc.2
+  compat / dsh 0.2.1-alpha.1 compat / dsh 0.2.1-alpha.2
+  compat / dsh 0.2.1-alpha.3 compat / dsh 0.2.1-alpha.4
+  compat / dsh 0.2.1-alpha.5 compat / dsh 0.2.1-rc.1
+  compat / dsh 0.2.1-rc.2    compat / dsh 0.2.1-rc.3
+  compat / dsh 0.2.1-rc.4    compat / dsh 0.2.1-rc.5
+通过的新宿主格子：0.2.2-alpha.2 / 0.2.2-alpha.3 / 0.2.2-rc.1。
+
+失败原文（取 compat / dsh 0.2.0-rc.1 那个 job 的日志，其余 11 个逐字相同）：
+
+  file:///home/runner/work/dsh-ponytail-58fly/dsh-ponytail-58fly/scripts/check-install.mjs:331
+        throw new Error('宿主读的 manifest 不是包内那一份：宿主 ' + resolved.meta.manifestPath + '，包内 ' + realManifest);
+  Error: 宿主读的 manifest 不是包内那一份：宿主 undefined，
+         包内 /tmp/pt-install-ZjNN7V/node_modules/dsh-ponytail-58fly/package.json
+      at discoverClient (file:///.../scripts/check-install.mjs:331:13)
+      at async assembleProbe (file:///.../scripts/check-install.mjs:507:22)
+      at async file:///.../scripts/check-install.mjs:648:21
+  ##[error]Process completed with exit code 1.
+
+--- 二、根因 ---
+
+「宿主 undefined」不是探针取错了路径，是老宿主根本没有这个字段。
+逐版本把 @deepseek-ai/dsh-client-modules 拉下来 grep manifestPath 出现次数，
+结果是干净的分水岭：
+
+  0.2.0-rc.1    0 命中      0.2.1-rc.1    0 命中
+  0.2.0-rc.2    0 命中      0.2.1-rc.2    0 命中
+  0.2.1-alpha.1 0 命中      0.2.1-rc.3    0 命中
+  0.2.1-alpha.2 0 命中      0.2.1-rc.4    0 命中
+  0.2.1-alpha.3 0 命中      0.2.1-rc.5    0 命中
+  0.2.1-alpha.4 0 命中      0.2.2-alpha.2 2 命中
+  0.2.1-alpha.5 0 命中      0.2.2-alpha.3 2 命中
+                            0.2.2-rc.1    2 命中
+
+旧版 resolveMeta 返回的 meta 只有 {clientPath, inject?, external, immediately}；
+新版才多一个 manifestPath（它同时被 fetchBundle 用来 createRequire 定位包内资源）。
+而我们这条断言是「宿主读的 manifest 是不是包里那一份」——
+问的是一件老宿主压根不回答的事。拿 undefined 去比，等于把整个旧区间判红。
+
+--- 三、修法（commit 704ea01）---
+
+只在宿主真给了路径时判定归属，没给就跳过：
+
+  const hostManifest = resolved.meta.manifestPath;
+  if (checkProvenance && typeof hostManifest === 'string' && hostManifest !== realManifest) {
+    throw new Error('宿主读的 manifest 不是包内那一份：宿主 ' + hostManifest + '，包内 ' + realManifest);
+  }
+
+返回值里记成 manifestPath: typeof hostManifest === 'string' ? hostManifest : null，
+不把 undefined 冒充成「查过了」。
+
+--- 四、修复后复验 ---
+
+本地两侧都跑（同一个包，两个宿主版本）：
+
+  $ PT_DSH_VERSION=0.2.0-rc.1 node scripts/check-install.mjs --mode assemble --tarball <tgz> --selftest
+    宿主判定：模块图按包名找到本包 = true（rev=f251f5484469）
+    宿主判定：客户端产物路径 = .../node_modules/dsh-ponytail-58fly/lib/client.js
+    宿主判定：按包名取到客户端产物 = true
+    宿主判定：平台 = 网页
+    宿主判定：外部依赖 = []（声明 [...] inject）
+    宿主判定：产物外壳 id = "dsh-ponytail-58fly"
+    selftest ✓ 三破一复通过（3 种破坏全红，恢复后重新变绿）
+    安装形态验证通过（mode=assemble）   EXIT=0
+
+  $ node scripts/check-install.mjs --mode assemble --tarball <tgz> --selftest      # 缺省 0.2.2-rc.1
+    （同样六行宿主判定、同样三破一复全绿）EXIT=0
+
+--- 五、重跑 CI ---
+
+  $ git push origin main       # 704ea01
+  run 42439120435 → completed / success
+    22 个 job 全绿：quality / node 20、quality / node 22、compat ×15、
+                   install / tarball、install / link、install / assemble、
+                   pack / 产物纯度；drift skipped（只在 schedule / dispatch 才跑）
+
+--- 六、这次事故的教训 ---
+
+1. 探针问宿主的每一个字段都要先确认「这个字段在其声称支持的区间里都真的存在」。
+   engines.dsh 写的是 >=0.2.0-rc.1 <0.2.3-0，那就得按整个区间验，不能只按最新宿主验。
+2. 本地全绿掩盖不了这件事：本机装的是 0.2.2-rc.1，落在有新字段的那一半。
+   只有 compat 矩阵会把它逼出来 —— 这就是那 15 个格子存在的意义。
+3. 修复本身不进包（scripts/ 不在 files 白名单），所以 verify-release 的
+   「tag 之后进包内容不得变化」不会红；这一点已实测（GATE7=0）。
