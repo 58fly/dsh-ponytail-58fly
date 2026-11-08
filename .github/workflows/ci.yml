@@ -88,7 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # engines.dsh 写的是 >=0.2.0-rc.1 <0.2.3-0。这里**穷举** npm 上落在这个区间里的
+        # engines.dsh 写的是 >=0.2.0-rc.1 <0.3.0-0。这里**穷举** npm 上落在这个区间里的
         # 全部 15 个版本，而不是抽两格：区间是给用户看的承诺，承诺的每一格都该有人跑过。
         # 新增版本时由 scripts/dsh-matrix.mjs 从 registry 算出来并断言与本表一致
         # （见 quality job 的"矩阵已覆盖 registry 全系列"一步）。

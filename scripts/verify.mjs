@@ -145,11 +145,30 @@ check(
     '永远不生效，只会误导读者。',
 );
 
+/**
+ * `engines.dsh` 的形状由 `package.json` 自己派生断言，不再硬编码某个上界。
+ *
+ * 为什么不再写死 `<0.2.3-0`：上界会随着「宿主真发了新版本、我们实测过」而抬
+ * （0.2.2 → 0.3.0 就是这么抬的）。把字符串写进断言，每次抬上界都要同步改这里，
+ * 改漏了就得到一个假警报——而这条断言的职责从来不是「记住上界」，是「保证下界没被
+ * 悄悄放宽、且上界不是无穷大」。这两件事都能从 package.json 自身派生。
+ */
+const enginesDsh = typeof pkg.engines?.dsh === 'string' ? pkg.engines.dsh : '';
+const LOWER_BOUND = '>=0.2.0-rc.1';
+const enginesClauses = enginesDsh.split(/\s+/).filter((clause) => clause !== '');
+const upperBound = enginesClauses.find((clause) => clause.startsWith('<'));
 check(
-  typeof pkg.engines?.dsh === 'string' && pkg.engines.dsh.includes('<0.2.3-0'),
-  'engines.dsh 必须是 >=0.2.0-rc.1 <0.2.3-0 形态：' +
+  enginesDsh.startsWith(LOWER_BOUND + ' ') && upperBound !== undefined,
+  'engines.dsh 必须是「' + LOWER_BOUND + ' <上界」两段式：' +
     '宿主 unmetRequirements 看到 engines.dsh 会直接 return，不再检查 peerDependencies，' +
-    '这是唯一的版本闸门；且 <0.2.3-0 才能排除 0.3.0 系列。',
+    '这是唯一的版本闸门；下界写死不许悄悄放宽，上界必须显式存在（不能是 `*` 或只有下界）。' +
+    '实际是 ' + (enginesDsh || '(空)') + '。',
+);
+check(
+  upperBound !== undefined && Number.isFinite(Number(upperBound.slice(1).split('-')[0].split('.')[0])),
+  'engines.dsh 的上界必须是一个具体的版本号（形如 `<0.3.0-0`），不能是通配：' +
+    '上界的意义是「我们在这个版本上真跑过矩阵」，写 `<1.0.0-0` 等于没写。' +
+    '实际是 ' + (upperBound ?? '(缺)') + '。',
 );
 
 check(
