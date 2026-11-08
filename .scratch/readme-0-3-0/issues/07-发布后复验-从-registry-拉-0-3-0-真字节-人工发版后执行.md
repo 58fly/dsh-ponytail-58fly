@@ -74,5 +74,26 @@ pnpm run verify:published
 
 ## 验收
 
+## Comments
+
+### local — 2026-11-08T04:11:20.311Z
+勘察结果：本票的复验对象是 registry 上的 `dsh-ponytail-58fly@0.3.0`，当前 registry 末版仍是 0.2.2，故本票暂不可执行。
+
+发版由人执行（仓库纪律：Git 先行 npm 后发），三条命令：
+
+```bash
+git checkout main && git merge --no-ff feat/readme-0-3-0
+git tag v0.3.0 && git push origin main && git push origin v0.3.0
+# publish.yml 由 tag 触发，带 --provenance
+```
+
+发版完成后本票要做的（届时由我执行）：
+
+1. `pnpm run verify:published` —— 从 registry 拉 0.3.0 真字节，与本地 `npm pack` 产物逐文件比对 digest。
+2. 核对 npm 页面的 version / engines.dsh / description / README 渲染（中英双语互链可达）。
+3. 把输出留档到 `docs/releases/0.3.0/05-verify-published.txt`。
+
+当前状态：等待人工发版。
+
 
 ## 进度
