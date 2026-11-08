@@ -25,7 +25,7 @@ DSH（DeepSeek Harness）插件：懒人模式（ponytail）。给会话注入�
 
 ## 部署
 
-三种形态都行，**首选按包名装**：版本号可追溯，插件页的更新提示会显示 `0.2.1` 这样的版本号而不是 commit SHA。
+三种形态都行，**首选按包名装**：版本号可追溯，插件页的更新提示会显示 `0.2.2` 这样的版本号而不是 commit SHA。
 
 ### 按包名装（推荐）
 
@@ -57,7 +57,7 @@ dsh plugin --profile web add dsh-ponytail-58fly
 ```bash
 pnpm run build
 npm pack                                    # 产物落在当前目录
-dsh plugin --profile web add ./dsh-ponytail-58fly-0.2.1.tgz
+dsh plugin --profile web add ./dsh-ponytail-58fly-0.2.2.tgz
 ```
 
 **这条路的已知边界**：tarball 手工安装不会替你把对等依赖补装进来。
@@ -153,9 +153,10 @@ pnpm run verify:published # 发布后：从 registry 拉回真字节复验（不
 | 安装形态 | `scripts/check-install.mjs --mode tarball\|link` | 包能不能装进一个像 profile 的目录 |
 | 真装配 | `scripts/check-install.mjs --mode assemble` | 装进去后宿主能不能载入、六个技能在不在、切档是否生效、`$DSH_HOME` 有没有残渣；以及**宿主自己**认不认我们是网页客户端模块（模块图里有我们这一行、按包名取得到产物、产物就是包里那一份） |
 | 产物纯度 | `scripts/verify.mjs` | 运行时只导入宿主公开面（不含子路径）、无 `new Function`/`eval`、声明与磁盘一致、源码零写盘 |
-| 发布后复验 | `scripts/verify-published.mjs`（`pnpm run verify:published`） | **别人从 registry 装到的**那份字节：自己去 registry 拉包、核对 `shasum`/`integrity`、再拿这份字节跑一遍真装配与宿主发现断言。不读本地 `.tgz`，所以本地包再绿也不能替它作证 |
+| 发布后复验 | `scripts/verify-published.mjs`（`pnpm run verify:published`） | **别人从 registry 装到的**那份字节：自己去 registry 拉包、核对 `shasum`/`integrity`、再拿这份字节跑一遍真装配与宿主发现断言。不读本地 `.tgz`，所以本地包再绿也不能替它作证。另打印该版本的产地签名状态 |
+| 产地签名 | `scripts/verify-release.mjs --verify`（`pnpm run verify:release`） | registry 上当前版本有没有 SLSA provenance：`npm publish --provenance` 连 `id-token: write` 真的生效了没有。摘要是「内容没被改过」，产地签名是「它出自哪条流水线、哪个 commit」，两件事。更早的版本按 `NO_PROVENANCE_VERSIONS` 豁免 |
 
-前三条都自带反向用例（`--selftest`）：把断言喂给人为构造的脏输入，证明它会红。
+前三条都自带反向用例（`--selftest`）：把断言喂给人为构造的脏输入，证明它会红。产地签名那条的反向用例在同名纯函数模块的单测里（`test/provenance.test.mjs`）——键不存在 / 显式 `null` / 只有 publish attestation，各自必须判红在正确的成因上。
 `verify:published` 的反向用例在 `test/verify-published.test.mjs` 里——一个**还没发布**的版本号、
 一个端口已关的假 registry、一对摘要对不上的包，各自必须红在正确的结论上。
 一个没法演示失败用例的卡口不是卡口，只是注释。

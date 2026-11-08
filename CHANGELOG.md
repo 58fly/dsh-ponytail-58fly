@@ -2,6 +2,43 @@
 
 本文件记录面向用户的变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.2] - 2026-11-08
+
+这一版的目的只有一个：**让发布带上产地签名**（npm provenance / SLSA）。
+0.2.0 与 0.2.1 都是「谁都能改」的普通发布——registry 上只有摘要，没有「这份字节出自哪条流水线、
+哪个 commit」的凭据。从这一版起，`npm publish` 会同时向 Sigstore 申请短期证书并签一条 attestation，
+把构建来源固化进 registry。运行时代码一行未改。
+
+### 新增
+
+- **发布流水线带 `--provenance`**：`publish.yml` 的发布步骤改成 `npm publish --provenance`。
+  该 job 同时补上 `permissions: { contents: read, id-token: write }`——产地里那枚 OIDC 令牌就靠它，
+  缺了 npm 会在发布前抛 `EUSAGE: Provenance generation in GitHub Actions requires "write" access to the "id-token" permission`。
+  两处是一对，删一个另一个立刻失效。
+- **`scripts/provenance.mjs`**：产地签名的判据，纯函数零 I/O。`readAttestationPointer` 读 `dist.attestations`，
+  并把三种「没有」分开报（键不存在 / 显式 `null` / 形态不对），`judgeProvenanceBundle` 只认 SLSA provenance 那条，
+  `judgeProvenanceCoverage` 判「当前版本必须有、历史版本按豁免表放行」。抽出来的理由是：发布前与发布后两个脚本
+  都要问同一件事，判据只能有一份。
+
+### 变更
+
+- **`verify:release` 新增产地签名硬门**：当前版本没有 SLSA provenance 直接红；更早的版本按 `NO_PROVENANCE_VERSIONS`
+  豁免并在 notes 里标成「历史遗留」（0.2.0 / 0.2.1 是开关上线前发的，不是漏签）。
+- **`verify:published` 打印产地签名状态**：只记录不影响退出码——它问的是「字节可不可装可用」，签名是另一问，
+  由 `verify:release` 把硬门。端点偶尔 5xx 不该让一次可用的复验失败。
+
+### 文档
+
+- `docs/发布清单.md` 增「产地签名」一节：三件前置（`id-token: write` / 托管 runner / repository 公开且大小写一致）、
+  验证命令、以及「补签只能重发一个版本，不能给已发布版本追加」。
+- README 的发布卡口表把产地签名并入「发布后复验」那行的说明。
+- 安装示例与迁移文档的版本号随 0.2.2 同步。
+
+### 已知限制
+
+已经发出去的 0.2.0 与 0.2.1 拿不到产地签名——attestation 是发布时随包一起提交的，事后无法补。
+要覆盖这两个版本只可能重发同内容的新版本号，而那会让已经锁在别人 `package.json` 里的两个版本永远缺签；
+所以选择向前修，不重发。
 ## [0.2.1] - 2026-11-08
 
 这一版不改运行时行为，只把 0.2.0 打 tag 之后漏在 tag 外面的两处**进包**改动归进来，

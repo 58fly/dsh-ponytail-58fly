@@ -15,6 +15,12 @@ import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
+import {
+  PROVENANCE_PREDICATE,
+  judgeProvenanceCoverage,
+  readAttestationPointer,
+} from './provenance.mjs'
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'))
 const version = pkg.version
@@ -32,6 +38,13 @@ const LEGACY_VERSIONS = new Set()
  * 也无法补 tag——把它当真只会让门禁永远红着。
  */
 const NPM_INTERNAL_VERSIONS = new Set(['0.0.0-stage'])
+
+/**
+ * 产地签名开关（publish.yml 的 `npm publish --provenance`）上线之前发的版本。
+ * 它们没有 SLSA provenance 是历史事实，不是本次发布漏签，不该让门禁永远红。
+ * 只往这里加已经发布、且确实没签的旧版本；新版本一个都不许进来。
+ */
+const NO_PROVENANCE_VERSIONS = new Set(['0.2.0', '0.2.1'])
 
 const failures = []
 const notes = []
@@ -135,6 +148,38 @@ if (process.argv.includes('--verify')) {
 
       notes.push(`registry latest：${latest}`)
       notes.push(`registry 已发布：${published.join(', ')}`)
+
+      // 产地签名：当前版本必须带 SLSA provenance，历史版本按豁免表放行。
+      // abridged 文档的 versions[v].dist 里就有 attestations 指针（实测 vite 有、本仓
+      // 0.2.1 没有），不必为每个版本再打一次单版本接口。
+      const entries = Object.entries(meta.versions ?? {}).map(([v, entry]) => ({
+        version: v,
+        dist: entry?.dist,
+      }))
+      const coverage = judgeProvenanceCoverage(entries, version)
+      if (coverage.current === null) {
+        fail(`registry 文档里找不到 ${version} 这个版本，无法判产地签名`,
+          '刚发布的版本可能要等几十秒才进 registry 文档，稍后重试')
+      } else if (!coverage.current.present) {
+        fail(`registry 上的 ${version} 没有产地签名（${coverage.current.why}）`,
+          '发布时必须带 npm publish --provenance 且 job 有 id-token: write；补签只能重发一个版本')
+      } else if (coverage.current.predicateType !== PROVENANCE_PREDICATE) {
+        fail(`${version} 的 attestation 类型是 ${coverage.current.predicateType}，不是 ${PROVENANCE_PREDICATE}`,
+          '检查是否换成了别的签名方式；判据只认 SLSA provenance')
+      } else {
+        notes.push(`产地签名：${version} 带 ${PROVENANCE_PREDICATE}`)
+      }
+
+      // 更早的版本按豁免表判：表里没有又确实没签，说明这一次漏了。
+      for (const v of coverage.older) {
+        if (NPM_INTERNAL_VERSIONS.has(v)) continue
+        if (NO_PROVENANCE_VERSIONS.has(v)) {
+          notes.push(`  （历史遗留，豁免）${v} 发布时还没有产地签名开关`)
+          continue
+        }
+        fail(`registry 上的 ${v} 没有产地签名，又不在豁免表里`,
+          '新版本必须带产地签名；确认漏签就补发一个新版本，或把该旧版本加进 NO_PROVENANCE_VERSIONS')
+      }
 
       if (latest !== version) {
         fail(`registry latest 是 ${latest}，本地是 ${version}`,

@@ -1,6 +1,6 @@
 {
   "name": "dsh-ponytail-58fly",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": false,
   "type": "module",
   "description": "A self-maintained lazy-mode plugin for DeepSeek Harness: mode-graded guidance, fence-aware prompt filtering and a two-language skill catalog.",

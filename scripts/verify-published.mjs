@@ -30,6 +30,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
+import { describeProvenance, readAttestationPointer } from "./provenance.mjs";
+
 const run = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const NPM = process.env.NPM ?? "npm";
@@ -103,6 +105,24 @@ export function judgeDigest(dist, packed) {
   return { ok: shasumMatch && integrityMatch !== false, shasumMatch, integrityMatch };
 }
 
+/**
+ * 读产地签名状态。它只做记录，不影响退出码——本脚本问的是「字节可不可装可用」，
+ * 「有没有签名」由 verify:release 硬门（那里没有签名直接红）。
+ *
+ * 端点取不到内容时返回 null 而不是抛错：签名端点偶尔 5xx，不该让一次可用的复验失败。
+ */
+async function readProvenance(dist) {
+  const pointer = readAttestationPointer(dist);
+  if (!pointer.present || pointer.url === null) return { pointer, bundle: null };
+  try {
+    const res = await fetch(pointer.url, { headers: { accept: "application/json" } });
+    if (!res.ok) return { pointer, bundle: null };
+    return { pointer, bundle: await res.json() };
+  } catch {
+    return { pointer, bundle: null };
+  }
+}
+
 /** 问 registry 要这个版本的 dist 段；没发布就返回结论，不抛错。 */
 async function readPublishedDist(name, version, registry) {
   const args = ["view", name + "@" + version, "dist", "--json"];
@@ -168,6 +188,10 @@ async function main(args) {
   const dist = published.dist;
   const distIntegrity = typeof dist.integrity === "string" ? dist.integrity : "（该版本没有 integrity 字段）";
   console.log("registry 记录：shasum=" + String(dist.shasum) + " integrity=" + distIntegrity);
+
+  // 产地签名单独一行：它是「这份字节出自哪条流水线」的凭据，与摘要验的是两件事。
+  const signed = await readProvenance(dist);
+  console.log("产地签名：" + describeProvenance(signed.pointer, signed.bundle));
 
   const dir = await mkdtemp(join(tmpdir(), "pt-published-"));
   try {

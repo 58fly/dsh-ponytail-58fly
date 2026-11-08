@@ -10,6 +10,14 @@ name: publish
 # CHANGELOG 有当前版本小节。任何一步红都不发布。
 #
 # 需要仓库 secret `NPM_TOKEN`（npm 的 Automation token，账号 58fly）。
+#
+# 产地签名（npm provenance）：从 0.2.2 起每次发布都带 SLSA provenance。
+# 它要求三件事同时在位，缺一件 npm 会直接抛 EUSAGE 而不是默默降级：
+#   1) 本 job 的 permissions 里有 `id-token: write`（OIDC 令牌，见下）；
+#   2) 跑在受支持的托管 runner 上（这里就是 ubuntu-latest，不能是自建机）；
+#   3) package.json 的 repository.url 指向公开仓库，且大小写与 owner/repo 一致。
+# 不要改用 publishConfig.provenance：那样本地手工 `npm publish` 会因为没有 OIDC 直接报错，
+# 而发布入口只在 CI 上带这个开关，落到 package.json 里反而让本地路径莫名其妙炸掉。
 
 on:
   push:
@@ -26,6 +34,12 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # 产地签名要拿 GitHub 的 OIDC 令牌换 Sigstore 的短期证书，缺 id-token: write
+    # 时 npm 会在发布前抛 EUSAGE：Provenance generation in GitHub Actions requires
+    # "write" access to the "id-token" permission。contents 只读即可——发布不改仓库。
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,4 +69,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         # npm publish（而不是 pnpm publish）：npm 不做 git 分支/工作区检查，
         # 那些检查已经由 prepublishOnly 里的 verify-release.mjs 做得更严格。
-        run: npm publish
+        #
+        # --provenance：发布时顺带向 Sigstore 申请短期证书，把「这份字节是哪条流水线、
+        # 哪个 commit 构建的」签成 attestation 一并传给 registry。npm 10.9.8 的
+        # ensureProvenanceGeneration 会在 GitHub Actions 上检查 OIDC 环境变量，
+        # 拿不到就抛 EUSAGE——所以它与上面的 permissions 是一对，删一个另一个就废。
+        run: npm publish --provenance
