@@ -15,7 +15,7 @@ Status: resolved
 
 ## Question
 
-地图判据 8 的决定早已成文（`.scratch/ponytail-takeover/map.md:21`：`get()` 对 `locator.path` 做 resolve 后前缀校验、`list()` 对符号链接取 realpath 后同样校验），**实现零落地**。`src/skills/provider.ts` 里唯一沾边的 `startsWith` 是 `:107` 的 `entry.name.startsWith('.')`（跳过点文件），与越界防护无关。
+地图判据 8 的决定早已成文（`docs/history/scratch/ponytail-takeover/map.md:21`：`get()` 对 `locator.path` 做 resolve 后前缀校验、`list()` 对符号链接取 realpath 后同样校验），**实现零落地**。`src/skills/provider.ts` 里唯一沾边的 `startsWith` 是 `:107` 的 `entry.name.startsWith('.')`（跳过点文件），与越界防护无关。
 
 三条逃逸路径已实测可复现（探针脚本 `/tmp/pt-b01-probe.mjs`）：
 

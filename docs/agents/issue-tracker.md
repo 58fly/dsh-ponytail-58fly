@@ -28,3 +28,14 @@ Used by `/wayfinder`. The **map** is a file with one **child** file per ticket.
 - **Frontier**: scan `.scratch/<effort>/issues/` for files that are open, unblocked, and unclaimed; first by number wins.
 - **Claim**: set `Status: claimed` and save before any work.
 - **Resolve**: append the answer under an `## Answer` heading, set `Status: resolved`, then append a context pointer (gist + link) to the map's Decisions-so-far in `map.md`.
+
+## Archiving
+
+`.scratch/` holds **only the effort that is still alive**. A finished effort moves to
+`docs/history/scratch/<slug>/` — same files, same body, no rewriting — once it is closed
+and nothing in `README.md` / `CHANGELOG.md` links to it any more. The rule and the current
+inventory live in `docs/history/scratch/README.md`.
+
+Archived tickets are read-only history: the deck tools resolve tickets by scanning
+`.scratch/<slug>/`, so they will not find an archived one, and that is intended. Read the
+file directly when you need it. Never move an archived effort back into `.scratch/`.

@@ -198,7 +198,7 @@ Status: resolved
 接缝本身**等本人确认**（to-spec 要求先对齐接缝再拆票）。若本人要更低的接缝（只判清单形状），那与现有清单形状测试重复；若要更高的接缝（真宿主进程 + 浏览器调试协议），成本与收益不成比例，已列 Out of scope。
 ### local — 2026-11-07T17:56:00Z
 
-接缝已由本人确认（原话：「接缝就按规格里那一条：装配探针起的那棵真 cordis 树挂宿主客户端模块登记服务，不改」）。按 /to-tickets 拆出 4 张 tracer-bullet 实施票，全部落在 `.scratch/publish-0.2.0/issues/`：
+接缝已由本人确认（原话：「接缝就按规格里那一条：装配探针起的那棵真 cordis 树挂宿主客户端模块登记服务，不改」）。按 /to-tickets 拆出 4 张 tracer-bullet 实施票，全部落在 `docs/history/scratch/publish-0.2.0/issues/`：
 
 | 票 | 标题 | 前置 | 交付什么 |
 |---|---|---|---|
