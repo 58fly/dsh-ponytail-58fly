@@ -1,0 +1,33 @@
+=== 0.2.2 发布账号与环境（2026-11-08 实测）===
+
+--- 本机登录态 ---
+npm: /Users/sunkai/.hermes/node/bin/npm (npm 10.9.8)
+npm whoami：58fly
+注：只留账号名，不留凭据。~/.npmrc 的 _authToken 与仓库 secret NPM_TOKEN 都不入库。
+真发布走 GitHub Actions 的 NPM_TOKEN（Automation token，账号 58fly），本机 CLI 只用于核对。
+
+--- registry 侧维护者 ---
+{
+  "maintainers": [ { "name": "58fly", "email": "dlyh@vip.qq.com" } ],
+  "_npmUser":    { "name": "58fly", "email": "dlyh@vip.qq.com" }
+}
+
+--- 发布环境 ---
+runner：ubuntu-latest（托管 runner —— 产地签名要 GitHub 的 OIDC 身份，自建机拿不到）
+node 22 / pnpm 12.16.1（pnpm-workspace.yaml 的 allowBuilds 是 v12 语法，用 v10 会忽略它、esbuild postinstall 不放行）
+本地对照：node v22.22.3 / npm 10.9.8 / pnpm 12.16.1（macOS）
+
+--- Git 侧 ---
+HEAD        de3af02  release: 0.2.2 —— 让发布带上产地签名（npm provenance）
+父提交      85ce909  docs(release): 留档 0.2.1 七份证据
+tag         v0.2.0 / v0.2.1 / v0.2.2（三个已发布版本各有一个）
+远端        58fly/dsh-ponytail-58fly，PUBLIC，默认分支 main
+
+--- 下一个版本仍未被占用（下次发版要用的活样本）---
+$ npm view dsh-ponytail-58fly@0.2.3 version
+npm error code E404
+npm error 404 No match found for version 0.2.3
+退出码：1
+
+判据提醒：「版本不存在」看**退出码 1**，不是看 stdout 空不空。
+这一点 0.2.0 与 0.2.1 各踩过一次，记录在各自目录的 prepublish-absence-check 里。

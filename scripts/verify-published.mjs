@@ -123,9 +123,17 @@ async function readProvenance(dist) {
   }
 }
 
+/**
+ * 读 registry 时一律 `--prefer-online`：本脚本天生跑在「刚发布完」的那一刻，
+ * 而 npm 的本地缓存里存着发布前的 packument。实测过不加这一条的后果——
+ * `npm view` 因为 stale-while-revalidate 拿到了新版本，`npm pack` 却仍按旧
+ * packument 解析，直接 `ETARGET: No matching version found`，把一个刚发成功的
+ * 版本报成「不存在」。让包管理器自己去核对，比在这里猜缓存何时过期可靠。
+ */
+
 /** 问 registry 要这个版本的 dist 段；没发布就返回结论，不抛错。 */
 async function readPublishedDist(name, version, registry) {
-  const args = ["view", name + "@" + version, "dist", "--json"];
+  const args = ["view", name + "@" + version, "dist", "--json", "--prefer-online"];
   if (registry !== null) args.push("--registry", registry);
   try {
     const result = await run(NPM, args, { maxBuffer: MAX_BUFFER });
@@ -137,11 +145,52 @@ async function readPublishedDist(name, version, registry) {
   }
 }
 
+/**
+ * 把「包管理器解析不到这个版本」的两种说法合起来判。
+ *
+ * ETARGET 与 E404 不是一回事：E404 是 registry 上没有这个东西，ETARGET 是
+ * registry 上有这个包、但没有这个版本能匹配——刚发布完撞上本地旧 packument 时
+ * 就会这样。两种都只该给一句结论，不该把 execFile 的错误对象整个倒出来。
+ */
+export function classifyUnpackable(texts) {
+  for (const text of texts) {
+    if (typeof text !== "string" || text.trim() === "") continue;
+    const start = text.indexOf("{");
+    if (start !== -1) {
+      try {
+        const parsed = JSON.parse(text.slice(start));
+        const code = parsed?.error?.code;
+        if (code === "ETARGET" || code === "E404") return parsed.error.summary ?? "包管理器解析不到这个版本";
+      } catch {
+        // 不是 JSON，落到下面的文本判据。
+      }
+    }
+    if (/\bETARGET\b/.test(text)) return "包管理器按本地缓存的元数据解析不到这个版本";
+    // npm 11 把同一件事写成 `notarget No matching version found`（小写、没有 ETARGET 字样），
+    // 只认错误码会在新版本 npm 上漏判，所以这句人话也算数。
+    if (/No matching version found/i.test(text)) return "包管理器按本地缓存的元数据解析不到这个版本";
+    if (/\bE404\b/.test(text)) return "registry 返回 404";
+  }
+  return null;
+}
+
 /** 让包管理器把那个版本拉下来，返回它自己算的摘要与落盘文件名。 */
 async function pack(name, version, dir, registry) {
-  const args = ["pack", name + "@" + version, "--json", "--pack-destination", dir];
+  const args = ["pack", name + "@" + version, "--json", "--pack-destination", dir, "--prefer-online"];
   if (registry !== null) args.push("--registry", registry);
-  const result = await run(NPM, args, { maxBuffer: MAX_BUFFER });
+  let result;
+  try {
+    result = await run(NPM, args, { maxBuffer: MAX_BUFFER });
+  } catch (error) {
+    const why = classifyUnpackable([error.stdout, error.stderr]);
+    if (why !== null) {
+      throw new Error(
+        "包管理器拉不到 " + name + "@" + version + "：" + why +
+          "。刚发布的版本若刚传播开，稍后重试；持续如此说明 registry 上没有这份字节",
+      );
+    }
+    throw error;
+  }
   const parsed = JSON.parse(result.stdout);
   if (!Array.isArray(parsed) || parsed.length !== 1) {
     throw new Error("包管理器没有返回恰好一个 tarball 的描述：" + result.stdout.slice(0, 200));
@@ -195,7 +244,15 @@ async function main(args) {
 
   const dir = await mkdtemp(join(tmpdir(), "pt-published-"));
   try {
-    const packed = await pack(name, version, dir, args.registry);
+    let packed;
+    try {
+      packed = await pack(name, version, dir, args.registry);
+    } catch (error) {
+      // 拉不到字节时说一句人话，不甩 execFile 的错误对象（那东西会把整段
+      // npm 错误日志连同 stack 一起糊到屏幕上）。
+      console.error(error instanceof Error ? error.message : String(error));
+      return 1;
+    }
     const file = join(dir, packed.filename);
     const info = await stat(file);
     if (info.size !== packed.size) {

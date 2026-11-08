@@ -26,6 +26,11 @@
   豁免并在 notes 里标成「历史遗留」（0.2.0 / 0.2.1 是开关上线前发的，不是漏签）。
 - **`verify:published` 打印产地签名状态**：只记录不影响退出码——它问的是「字节可不可装可用」，签名是另一问，
   由 `verify:release` 把硬门。端点偶尔 5xx 不该让一次可用的复验失败。
+- **`verify:published` 读 registry 一律带 `--prefer-online`**（发布后补的一处修复，`scripts/` 不进包，
+  所以 0.2.2 的 tarball 与发布那一刻逐字一致）。成因是实测撞上的：`npm view` 走 stale-while-revalidate
+  能拿到刚发布的新版本，`npm pack` 却仍按本地旧元数据解析，报 `ETARGET: No matching version found`，
+  把一次**成功**的发布报成「这个版本不存在」。同时把 `ETARGET` 单独归类——它与 `E404` 含义不同，
+  前者是「有这个包、没有这个版本」，后者是「registry 上没有这个东西」，两者都只给一句结论，不再抛错误对象。
 
 ### 文档
 

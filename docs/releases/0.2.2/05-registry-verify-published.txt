@@ -1,0 +1,28 @@
+=== 0.2.2 从 registry 拉回真字节复验（pnpm run verify:published）===
+
+口径：不接受本地任何 .tgz 输入 —— 脚本自己按包名问 registry 要 dist、自己按名字拉包、自己核摘要，
+再把拉回来的那份字节交给 check-install 走装配四段与宿主发现五项。本地包再绿也不能替它作证。
+
+$ node scripts/verify-published.mjs
+发布后复验：dsh-ponytail-58fly@0.2.2
+registry 记录：shasum=45af2658f7506024a307f570c9aee2bf79fc71fa integrity=sha512-wD5OkGHDfeAG2wjXCBj4jpEIU4Qv61w+8Sda9QQ+VzNdAeHWoVocdbPlf8oBogl7XHE7Oz3mUrohWlwt/BzSmw==
+产地签名：SLSA provenance 已签名（https://slsa.dev/provenance/v1）
+下载并核对：dsh-ponytail-58fly-0.2.2.tgz  92709 字节  shasum=45af2658f7506024a307f570c9aee2bf79fc71fa  integrity 也一致 ✓
+  技能面：ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review
+  四档提示词体量：{"off":0,"lite":1203,"full":1188,"ultra":1206}
+  宿主判定：模块图按包名找到本包 = true（rev=80c4b92e8f5e）
+  宿主判定：客户端产物路径 = /private/var/folders/r7/…/node_modules/dsh-ponytail-58fly/lib/client.js
+  宿主判定：按包名取到客户端产物 = true
+  宿主判定：平台 = 网页（resolveMeta 非 null 即证明 dsh.client.platform === "web"（平台门禁是它唯一的平台判据））
+  宿主判定：外部依赖 = []（声明 ["@deepseek-ai/dsh-client-ui-settings","@deepseek-ai/dsh-client-ui-renderer"] inject）
+  宿主判定：产物外壳 id = "dsh-ponytail-58fly"
+  安装形态验证通过（mode=assemble）
+
+✅ 复验通过：dsh-ponytail-58fly@0.2.2 从 registry 拉回的真字节可装可用
+
+退出码：0
+
+注：「产地签名：SLSA provenance 已签名」这一行是 0.2.2 新增的。同一脚本对 0.2.1 会打印
+    「产地签名：没有产地签名（dist 段里没有 attestations 键）」，但**退出码仍是 0** ——
+    本脚本问的是「字节可不可装可用」，签名是不是必须有，由 verify:release 把硬门。
+    这样分工的理由：签名端点偶尔 5xx，不该让一次可用的可用性复验失败。

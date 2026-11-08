@@ -1,0 +1,67 @@
+=== 0.2.2 产地签名（npm provenance / SLSA）实证（2026-11-08 实测）===
+
+这一版唯一的产品变化就是它，所以单独一份，把「签名真的存在、真的指向这份字节、真的指向这个 commit」
+三件事各自取证。不引官方文档的措辞，只看 registry 上实际躺着什么。
+
+--- 1. 指针：dist.attestations 存在 ---
+$ npm view dsh-ponytail-58fly@0.2.2 dist --json
+  "attestations": {
+    "url": "https://registry.npmjs.org/-/npm/v1/attestations/dsh-ponytail-58fly@0.2.2",
+    "provenance": { "predicateType": "https://slsa.dev/provenance/v1" }
+  }
+对照 0.2.1：dist 的键里没有 attestations（0.2.0 当时是显式 null）。
+
+--- 2. 端点：两条 attestation，其中一条是 SLSA provenance ---
+$ curl -s -o /dev/null -w '%{http_code}' https://registry.npmjs.org/-/npm/v1/attestations/dsh-ponytail-58fly@0.2.2
+200
+
+predicateTypes:
+  ["https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+   "https://slsa.dev/provenance/v1"]
+
+第二条才是判据认的那条（verify-release 只认 SLSA）。第一条是 npm 自己的发布事件记录，
+任何一次 publish 都会产生，**不能**拿它当产地签名——这一点在 test/provenance.test.mjs 里
+有一条专门的用例钉着（「只有 publish attestation 不算通过」）。
+
+对照 0.2.1：同一个端点回 404 {"error":"Not found"}。
+
+--- 3. 签名内容：它签的到底是不是这份字节 ---
+把 DSSE envelope 的 payload base64 解出来（application/vnd.dev.sigstore.bundle+json;version=0.2）：
+
+  _type:        https://in-toto.io/Statement/v1
+  predicateType: https://slsa.dev/provenance/v1
+  subject[0].name:   pkg:npm/dsh-ponytail-58fly@0.2.2
+  subject[0].digest: sha512 c03e4e9061c37de006db08d70818f88e910853842feb5c3ef1275af5043e57335d01e1d6a15a1c75b3e57fca01a2097b5c713b3b3de652ba215a5c2dfc1cd29b
+  predicate.buildDefinition.buildType: https://slsa-framework.github.io/github-actions-buildtypes/workflow/v1
+  predicate.buildDefinition.externalParameters.workflow:
+    { "ref": "refs/tags/v0.2.2",
+      "repository": "https://github.com/58fly/dsh-ponytail-58fly",
+      "path": ".github/workflows/publish.yml" }
+
+sealed 的那枚 digest 与 registry 的 dist.integrity 是否同源（base64 解成 hex 直接比）：
+  integrity      sha512-wD5OkGHDfeAG2wjXCBj4jpEIU4Qv61w+8Sda9QQ+VzNdAeHWoVocdbPlf8oBogl7XHE7Oz3mUrohWlwt/BzSmw==
+  → hex c03e4e9061c37de006db08d70818f88e910853842feb5c3ef1275af5043e57335d01e1d6a15a1c75b3e57fca01a2097b5c713b3b3de652ba215a5c2dfc1cd29b
+  attestation subject digest  c03e4e9061...c1cd29b
+  SAME: true
+
+→ 签名保护的就是 registry 上这份 tarball，不是「另一个构建产物」。
+
+--- 4. 透明账本 ---
+bundle.verificationMaterial.tlogEntries 有 1 条；发布时 npm 自己打印的索引：
+  Provenance statement published to transparency log: https://search.sigstore.dev/?logIndex=3747865466
+这是公开可查的账本条目，第三方可以独立核对「这条签名确实在某个时刻被写进过账本」，
+不依赖我们或 npm 的转述。
+
+--- 5. 生成侧的证据链（这三件缺一件就签不出来）---
+  a) .github/workflows/publish.yml 的 publish job: permissions { contents: read, id-token: write }
+  b) runs-on: ubuntu-latest（托管 runner；自建机拿不到 GitHub 的 OIDC 身份）
+  c) 发布命令 npm publish --provenance（不是 publishConfig.provenance）
+npm 10.9.8 的 ensureProvenanceGeneration 在 GitHub Actions 上检查 ACTIONS_ID_TOKEN_REQUEST_URL，
+缺权限时抛 EUSAGE（code: 'EUSAGE'），不是静默降级——所以「日志里出现了 Signed provenance statement」
+本身就是权限生效的证明。
+
+--- 6. 没做的事 ---
+没有给 0.2.0 / 0.2.1 补签。attestation 只能随发布一起提交，事后没有追加入口；
+要覆盖只能重发同内容的新版本号，而那会让已经锁在别人 package.json 里的两个版本永远缺签。
+verify-release 里 NO_PROVENANCE_VERSIONS = new Set(['0.2.0', '0.2.1']) 就是这个决定的落点：
+它们是历史事实，不是这次的疏漏，所以放行并标注；新版本一个都不许进来。

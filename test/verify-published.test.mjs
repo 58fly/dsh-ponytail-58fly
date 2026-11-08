@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
-import { classifyMissing, judgeDigest } from "../scripts/verify-published.mjs";
+import { classifyMissing, classifyUnpackable, judgeDigest } from "../scripts/verify-published.mjs";
 
 const run = promisify(execFile);
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -119,6 +119,27 @@ async function runScript(args, registryUrl) {
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+test("classifyUnpackable：ETARGET 也认，不只认 E404", () => {
+  const etarget = JSON.stringify({ error: { code: "ETARGET", summary: "No matching version found for dsh-ponytail-58fly@0.2.2." } });
+  assert.match(String(classifyUnpackable([etarget])), /No matching version found/);
+  const e404 = JSON.stringify({ error: { code: "E404", summary: "Not Found" } });
+  assert.equal(classifyUnpackable([e404]), "Not Found");
+});
+
+test("classifyUnpackable：老式纯文本 ETARGET / 无关错误各走各的", () => {
+  assert.match(String(classifyUnpackable(["npm error notarget No matching version found"])), /缓存的元数据/);
+  assert.equal(classifyUnpackable(["ETIMEDOUT connection reset"]), null, "超时不能被说成版本不存在");
+  assert.equal(classifyUnpackable(["", "  "]), null);
+});
+
+test("读 registry 一律 --prefer-online：刚发布完不能被本地旧 packument 骗", async () => {
+  // 实测过的真事故：npm view 走 stale-while-revalidate 拿到了新版本，npm pack 却仍按
+  // 本地旧元数据解析，报 ETARGET 把刚发成功的版本说成「不存在」。两条命令都得绕开缓存。
+  const source = await readFile(SCRIPT, "utf8");
+  assert.match(source, /"view",\s*name \+ "@" \+ version,\s*"dist",\s*"--json",\s*"--prefer-online"/, "view 没带 --prefer-online");
+  assert.match(source, /"pack",\s*name \+ "@" \+ version,[^\]]*"--prefer-online"/, "pack 没带 --prefer-online");
+});
 
 test("版本没发布时：给一句结论、退码非零、不把 404 栈甩到人脸上", async () => {
   const registry = await startFakeRegistry((request, response) => {

@@ -1,0 +1,39 @@
+=== 0.2.2 发布输出（GitHub Actions run 42440579889，workflow publish，由 tag v0.2.2 触发）===
+
+触发：git push origin v0.2.2（on: push tags [v*]）
+runner：ubuntu-latest（托管 runner，产地签名的硬前置之一）/ node 22 / pnpm 12.16.1
+job 权限：permissions { contents: read, id-token: write }  ← 0.2.2 新增，缺它 npm 抛 EUSAGE
+steps：pnpm install --frozen-lockfile → npm publish --provenance（NODE_AUTH_TOKEN=secrets.NPM_TOKEN）
+
+--- prepublishOnly 在 CI 里真跑（不是跳过）---
+> dsh-ponytail-58fly@0.2.2 prepublishOnly
+> pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs
+
+--- 第六道 test 与第七道 verify-release ---
+# tests 235
+# pass 235
+# fail 0
+✅ 发布前置检查通过：dsh-ponytail-58fly@0.2.2，tag v0.2.2 已就位
+
+（CI 里那一刻是 235 条；本地最终是 238 条，差的 3 条是发布之后补的
+  prefer-online 与 ETARGET 归类测试，只改 scripts/ 与 test/，不进包。）
+
+--- npm publish 输出 ---
+npm notice name: dsh-ponytail-58fly
+npm notice version: 0.2.2
+npm notice filename: dsh-ponytail-58fly-0.2.2.tgz
+npm notice package size: 92.7 kB
+npm notice unpacked size: 245.8 kB
+npm notice shasum: 45af2658f7506024a307f570c9aee2bf79fc71fa
+npm notice integrity: sha512-wD5OkGHDfeAG2[...]rohWlwt/BzSmw==
+npm notice total files: 60
+npm notice Publishing to https://registry.npmjs.org/ with tag latest and public access
+
+--- 产地签名在这里发生（0.2.0 / 0.2.1 的日志里没有这两行）---
+npm notice publish Signed provenance statement with source and build information from GitHub Actions
+npm notice publish Provenance statement published to transparency log: https://search.sigstore.dev/?logIndex=3747865466
+
++ dsh-ponytail-58fly@0.2.2
+
+注：transparency log 的 logIndex 每次发布不同（0.2.2 是 3747865466）。
+    它是 Sigstore 的公开可查账本条目，任何人拿这条索引都能独立核对签名。
