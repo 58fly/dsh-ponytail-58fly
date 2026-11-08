@@ -327,8 +327,12 @@ async function discoverClient(profileDirPath, pluginDir, tag, options = {}) {
       throw new Error('宿主读到的外部依赖与声明不一致：声明 ' + JSON.stringify(declaredExternal) + '，宿主 ' + JSON.stringify(resolved.meta.external));
     }
     const realManifest = await realpath(join(pluginDir, 'package.json'));
-    if (checkProvenance && resolved.meta.manifestPath !== realManifest) {
-      throw new Error('宿主读的 manifest 不是包内那一份：宿主 ' + resolved.meta.manifestPath + '，包内 ' + realManifest);
+    // manifestPath 是宿主较新版本才给的字段（dsh-client-modules >= 0.2.2-alpha.2）；
+    // 更早的宿主 meta 里只有 clientPath，没有它。compat 矩阵要跨整个 engines.dsh 区间，
+    // 所以这条归属断言只能在宿主真给了路径时判定 —— 拿 undefined 去比会把老宿主全判成红。
+    const hostManifest = resolved.meta.manifestPath;
+    if (checkProvenance && typeof hostManifest === 'string' && hostManifest !== realManifest) {
+      throw new Error('宿主读的 manifest 不是包内那一份：宿主 ' + hostManifest + '，包内 ' + realManifest);
     }
     return {
       discovered: true,
@@ -338,7 +342,7 @@ async function discoverClient(profileDirPath, pluginDir, tag, options = {}) {
       platformGate: 'resolveMeta 非 null 即证明 dsh.client.platform === "web"（平台门禁是它唯一的平台判据）',
       external: resolved.meta.external,
       inject: resolved.meta.inject ?? [],
-      manifestPath: resolved.meta.manifestPath,
+      manifestPath: typeof hostManifest === 'string' ? hostManifest : null,
       shellId: shell.id,
       rev: row.rev,
     };
