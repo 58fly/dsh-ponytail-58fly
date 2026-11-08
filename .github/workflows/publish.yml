@@ -5,9 +5,9 @@ name: publish
 # 与铁律顺序一致：commit → tag → push → publish。
 # tag 推到 GitHub 的那一刻说明 Git 侧已就位，这时才允许发布——顺序由事件本身保证。
 #
-# 发布门禁由 `prepublishOnly` 把守（typecheck → build → verify → check:skills →
-# check:matrix → test → verify-release）：工作区干净、HEAD 有 tag、tag 之后进包内容未变、
-# CHANGELOG 有当前版本小节。任何一步红都不发布。
+# 发布门禁由 `prepublishOnly` 把守（typecheck → build → verify → check:skills → check:readme
+# → check:matrix → test → verify-release）：工作区干净、HEAD 有 tag、tag 之后进包内容未变、
+# CHANGELOG 有当前版本小节、README 骨架与双语互链齐备。任何一步红都不发布。
 #
 # 需要仓库 secret `NPM_TOKEN`（npm 的 Automation token，账号 58fly）。
 #

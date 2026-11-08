@@ -1,6 +1,7 @@
 # 四类检查，各自回答一个不同的问题：
 #
-#   quality  —— 在当前 dsh（0.2.2-rc.1）上，四条链路是否全绿：typecheck / build / verify / test。
+#   quality  —— 在当前 dsh（0.2.2-rc.1）上，四条链路是否全绿：typecheck / build / verify / test，
+#               外加三道内容门：check:skills（技能契约）/ check:readme（README 骨架）/ check:matrix（区间覆盖）。
 #   compat   —— 在 engines.dsh 声明的整个范围上（0.2.0-rc.1 … 0.2.2-rc.1，共 15 个已发布版本）
 #               逐格跑四条链路，并在每格真装一次、真装配一次。矩阵与 registry 的一致性由
 #               scripts/dsh-matrix.mjs 断言（engines.dsh 改了而本表没跟上 = 红）。
@@ -78,6 +79,9 @@ jobs:
         env:
           # 漂移检查要查冻结 tree 还在不在；不配 token 会吃 60/小时 的共享限流。
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: README 结构（行数上限/层级/必留节/双语骨架一致）
+        run: pnpm run check:readme
 
       - name: 测试
         run: pnpm test

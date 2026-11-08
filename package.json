@@ -74,11 +74,12 @@
     "verify": "node scripts/verify.mjs",
     "check:skills": "node scripts/check-skills.mjs",
     "check:matrix": "node scripts/dsh-matrix.mjs --check",
+    "check:readme": "node scripts/check-readme.mjs",
     "measure": "node scripts/measure-prompt.mjs",
     "verify:release": "node scripts/verify-release.mjs --verify",
     "verify:published": "node scripts/verify-published.mjs",
     "test": "node --test test/*.test.mjs",
-    "prepublishOnly": "pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs"
+    "prepublishOnly": "pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:readme && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "~4.1.0",

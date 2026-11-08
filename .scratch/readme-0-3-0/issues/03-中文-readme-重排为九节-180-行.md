@@ -10,7 +10,7 @@
 
 **Blocked by:** #02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `wc -l README.md` ≤ 180。
 - [ ] `grep -n '^\*\*.*\*\*$' README.md` 零命中（无加粗段落式小标题）。
@@ -77,5 +77,18 @@ README 从 266 行压到 180 行以内，视觉上照 DietrichGebert/ponytail �
 
 ## 验收
 
+## Comments
+
+### local — 2026-11-08T04:02:11.561Z
+已实施并验证：README.md 从 266 行压到 139 行（预算上限 180），九节结构 = 头部（居中 h1 + 双语互链 + 一句话定位 + 四枚 badge）/ INSTALL / CORE / SKILLS / CONFIG / COMPAT / TROUBLESHOOT / SOURCE，节标题统一用 `<h2 align="center"><sub>EN</sub><br>中文</h2>` 式分节，模板借 FeatherHunter/dsh-opencode-palette 的 README（已抓取 264 行原文比对）。命令全进 bash 代码块且每行带 # 注释，配置/档位/技能/兼容/排障全部表格化，排障压成「现象 / 成因 / 处置」三列一行；正文零行首加粗小标题，层级只用 ## （HTML h2 等价）。
+
+内容取舍：新增「六道问」阶梯表与四档强度表（此前只是散文），删掉整段「部署三形态」与「发布卡口」表（发布卡口是维护者视角，使用者不需要；部署压缩成首装 + tarball 两条命令），删掉「v0.1 装完什么都没有」（0.3.0 之后无人从 0.1 升上来），删掉「仓库结构」树与「与上游的关系」（不属于使用者视角），保留并外链 docs/research/dsh-plugin-contract-0.2.2.md 作为版本区间唯一证据。
+
+两处如实修订：①「改档位有三条等价路径」实为环境变量与 profile 补丁两层生效路径加一条 session 内斜杠命令，改为「优先级 环境变量 > profile 补丁 > 内置兜底」+ bash 与 yaml 两块示例；②`locale` 字段在 src/ 下只有 schema 声明与类型定义、零消费点，README 如实写为「Schemastery 已声明，当前无消费点」而非「提示与技能描述语言」。
+
+验证：node scripts/verify.mjs 通过（26 源文件 / 97 产物 / 1 提醒），node --test test/*.test.mjs 244 条全绿。commit 32d35d4。
+
 
 ## 进度
+
+- 进度：100%（2026-11-08T12:02:11+08:00）：中文 README 九节 139 行落地，commit 32d35d4

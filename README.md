@@ -4,7 +4,7 @@
 
 **🌐 [中文](README.md) · [English](docs/README.en.md)**
 
-**少写代码，先找现成方案。**
+少写代码，先找现成方案。
 
 *The smallest change that fully solves the task.*
 
