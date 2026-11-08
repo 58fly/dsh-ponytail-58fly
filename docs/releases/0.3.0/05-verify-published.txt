@@ -1,0 +1,48 @@
+# 05 发布后复验：dsh-ponytail-58fly@0.3.0
+
+复验时间：2026-11-08 17:02:44 CST
+触发 workflow：publish（run 42464835214，success，34s）/ CI（run 42464833287，success，1m30s）
+tag：v0.3.0 → bc322a8（Merge branch 'feat/readme-0-3-0'）
+
+## 1. registry 事实
+```text
+latest: 0.3.0
+
+version = '0.3.0'
+engines = { dsh: '>=0.2.0-rc.1 <0.3.0-0', node: '>=20' }
+description = 'A lazy-mode plugin for DeepSeek Harness: mode-graded decision guidance, fence-aware prompt filtering and a two-language skill catalog.'
+```
+
+## 2. provenance
+```text
+{
+  url: 'https://registry.npmjs.org/-/npm/v1/attestations/dsh-ponytail-58fly@0.3.0',
+  provenance: { predicateType: 'https://slsa.dev/provenance/v1' }
+}
+```
+
+结论：dist.attestations.provenance.predicateType = https://slsa.dev/provenance/v1，npm 包页会显示 provenance 徽章。
+
+## 3. verify:published 输出
+```text
+$ node scripts/verify-published.mjs
+发布后复验：dsh-ponytail-58fly@0.3.0
+registry 记录：shasum=b9b3f856d95454a46e6bc2ff1ffb570d08c98446 integrity=sha512-m3xhSZOGQ7M/ZuS24SzEwPjAnR4IGNufAiIqrtrCh6N6HNDYwIL36tVbfc9kL/5N9bcq9DvWCvxTruZKOnyEsg==
+产地签名：SLSA provenance 已签名（https://slsa.dev/provenance/v1）
+下载并核对：dsh-ponytail-58fly-0.3.0.tgz  88648 字节  shasum=b9b3f856d95454a46e6bc2ff1ffb570d08c98446  integrity 也一致 ✓
+  技能面：ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review
+  四档提示词体量：{"off":0,"lite":1203,"full":1188,"ultra":1206}
+  宿主判定：模块图按包名找到本包 = true（rev=8fd39b61d703）
+  宿主判定：客户端产物路径 = /private/var/folders/r7/bvb7c30n2q127rkp8tywkzgc0000gn/T/pt-install-oxuewU/node_modules/dsh-ponytail-58fly/lib/client.js
+  宿主判定：按包名取到客户端产物 = true
+  宿主判定：平台 = 网页（resolveMeta 非 null 即证明 dsh.client.platform === "web"（平台门禁是它唯一的平台判据））
+  宿主判定：外部依赖 = []（声明 ["@deepseek-ai/dsh-client-ui-settings","@deepseek-ai/dsh-client-ui-renderer"] inject）
+  宿主判定：产物外壳 id = "dsh-ponytail-58fly"
+  安装形态验证通过（mode=assemble）
+
+✅ 复验通过：dsh-ponytail-58fly@0.3.0 从 registry 拉回的真字节可装可用
+```
+
+## 结论
+registry 拉回的真字节（shasum b9b3f856d95454a46e6bc2ff1ffb570d08c98446）与本地打包产物逐字节一致，
+宿主侧安装形态（模块图解析、客户端产物、平台门禁）全部通过，`latest` 已指向 0.3.0。票 07 验收项全部满足。
