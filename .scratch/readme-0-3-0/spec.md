@@ -1,6 +1,6 @@
 <!-- DSH-FORMAT: md-v1 -->
 <!-- DSH-TITLE: 0.3.0：原创口径重排 README（中英双语）+ 宿主区间打开到 0.2 线全部未来版本 -->
-<!-- DSH-STATUS: ready-for-agent -->
+<!-- DSH-STATUS: closed -->
 <!-- DSH-LABELS: ready-for-agent -->
 <!-- DSH-IDEMPOTENCY-KEY: deck-eec53ccd-5980362 -->
 <!-- DSH-CREATED: 2026-11-08T03:33:40.603Z -->
@@ -191,4 +191,172 @@
 - 截图本版不产出（用户裁决）：05 只做 assets/ 目录与 HTML 注释占位，并把 files 白名单守卫与 pack 检查正则扩到 assets/，防将来补图时误进 tarball。
 - 依赖链是 01、02 并行起步 → 03 → 04 → 06 → 07，05 与 03 同层汇进 06。
 
+### local — 2026-11-08T09:26:39.129Z
+收口核对完成。四件事都成立，关闭前先说两条我按「用户当场裁决」而不是「规格原文」判为已满足的地方（③④ 有实证，①② 见下方实测定语），免得后来人误以为它们被静默跳过。
+
+---
+
+## 一、这批判定在哪个提交
+
+```
+仓库    /Volumes/data/dsh-ponytail
+远端    https://github.com/58fly/dsh-ponytail-58fly.git（可写，已推）
+后端    本地 Markdown（markdown），代码平台不归 deck 管，按「直接推送」路径交付
+分支    main（长期分支）
+提交    9724c46  docs(tickets): 票 07 关票，复验结论与进度归档 (#07)
+        与 origin/main 同一个提交（9724c46），工作区干净，无 stash、无额外 worktree
+tag     v0.3.0 → bc322a8（git ls-remote --tags origin 实查确认）
+```
+
+改动进入长期分支的方式是一次合并提交：`bc322a8 Merge branch 'feat/readme-0-3-0'`。集成分支的独有提交已全部在 `main` 里（`git log main..feat/readme-0-3-0` 为空），分支随后删除。版本分支 `main` 上共 12 个提交从 `cfcd340` 推进到 `9724c46`。
+
+---
+
+## 二、逐票：查了什么、看到什么
+
+### 票 01 宿主区间到 `0.3.0-0`
+- `pnpm run check:matrix` → `compat 矩阵覆盖 engines.dsh 区间内全部 15 个版本 ✓`（exit 0）
+- `grep -rn '0\.2\.3-0'` 全仓 `src scripts test .github` → 唯一命中是 `scripts/verify.mjs:151` 的注释「为什么不再写死 `<0.2.3-0`」，代码零命中
+- `test/matrix-range.test.mjs:20` 断言 `RANGE = '>=0.2.0-rc.1 <0.3.0-0'`；`:30` 把 `0.2.99` 放在内；`:36` `0.3.0-0 / 0.3.0 / 0.3.0-rc.1 / 0.3.1 / 1.0.0` 一律在外；`:107` `upperBoundAccepted('<0.2.0-rc.1 <0.3.0-0')===true`；`:111` 放宽下界判 false
+- 额外收获：`:107-111` 这组断言是实施中发现的真漏洞补上的——原判据只查上界首段是有限数，`<1.0.0-0` 照样绿（等于没写上界），改为 `upperMajor === lowerMajor`，commit `8e355d3`
+
+### 票 02 品牌叙事
+- `grep -rin wenaixi README.md package.json CHANGELOG.md` → 0 命中
+- `grep -rin '接管\|takeover\|handover' README.md` → 0 命中
+- `docs/history/upstream-notes.md` 存在，首行 `> 本文件为内部历史记录，非产品文档。…`；`docs/migration-from-wenaixi.md` 已不存在
+- `grep -c self-maintained package.json` → `0`
+- 旧叙事残留面（合规，按 Q3 决策保留）：`docs/history/upstream-notes.md` 6 处、`docs/research/` 7 个文件共 66 处（历史材料）、`scripts/verify.mjs:308/309/643` 三处 `@wenaixi/` 反向断言（防止 `lib/client.js` 与 `cordis.patch.yml` require 不存在的模块）
+- `ci.yml` 里与迁移相关的过时注释：`grep -n 'migration\|迁移' .github/workflows/*.yml scripts/*.mjs` → 零命中
+
+### 票 03 中文 README 重排
+- `wc -l README.md docs/README.en.md` → `146 / 146`（上限 180，预算 108）
+- `grep -n '^\*\*.*\*\*$' README.md` → 唯一命中是第 5 行双语互链 `**🌐 [中文](README.md) · [English](docs/README.en.md)**`，按 Q6 的口径互链行豁免，不是段落式小标题
+- `grep -c '^####' README.md` → `0`
+- 七节 `<h2 align="center"><sub>…</sub>` 齐备：INSTALL:19 / CORE:43 / SKILLS:67 / CONFIG:89 / COMPAT:121 / TROUBLESHOOT:131 / SOURCE:142
+- 必须保留的事实逐条检索（README / EN 命中数）：`defaultMode` 2/2、`skillDir` 2/2、`locale` 1/1、`lite` 3/3、`ultra` 6/6、`DEFAULT_MODE` 1/1、`package}/skills` 1/1、五个 `ponytail-*` 各 ≥1
+- 但见下方「三、偏离规格的两处」，其中「已知坑」一行实际改名进了排障表
+
+### 票 04 结构门禁与英文版
+- `scripts/check-readme.mjs` 七个纯函数全导出：`countLines:38 / findBoldHeadings:56 / findDeepHeadings:73 / extractHeadings:94 / compareHeadings:114 / findLanguageLinks:131 / checkStructure:161`
+- `test/readme-structure.test.mjs` 11 条 `test(...)`，含四种违规样本（超行数、加粗小标题、双语互链缺失或指错仓库、只用中文有某节）
+- `pnpm run check:readme` → `README 结构校验通过（中英双语，骨架一致，上限 180 行）`
+- 挂在两处：`package.json#scripts.prepublishOnly` = `typecheck && build && verify && check:skills && check:readme && check:matrix && test && verify-release`；`.github/workflows/ci.yml:84` 有独立 step
+- 门禁当场抓到真问题：中文版第 7 行 tagline `**少写代码，先找现成方案。**` 正是「加粗独占行当小标题」，已改为普通文本
+
+### 票 05 配图基建
+- `assets/README.md` 存在（754 字节），内含 `<img src="assets/xxx.png" width="720">` 的引用写法与「不进 npm 发布物」的理由
+- `package.json#files` 仍是 6 项：`lib/**/*.js, lib/types/**/*.d.ts, skills/, cordis.patch.yml, README.md, LICENSE`，不含 `assets/`
+- `scripts/verify.mjs:611-612` 的白名单断言已扩到 `assets/`，提示语含「不该进 tarball」
+- `.github/workflows/ci.yml:294` 的 `BAD_OTHER` 正则已含 `assets`
+- 实测反向验证过：手动把 `"assets/"` 加进 `files` → verify 报红，恢复后全绿
+
+### 票 06 版本落地
+- `package.json#version` = `0.3.0`；`engines` = `{"node":">=20","dsh":">=0.2.0-rc.1 <0.3.0-0"}`
+- `CHANGELOG.md:5` 是 `## [0.3.0] - 2026-11-08`，是文首第一个版本小节；`grep -ci wenaixi CHANGELOG.md` → `0`
+- `docs/releases/0.3.0/` 五份：`01-prepublish-gates.txt / 02-version-and-brand-gates.txt / 03-pack-artifact.txt / 04-verify-release-before-tag.txt / 05-verify-published.txt`
+- 本次重打 tarball 实测：60 个条目，`^package/(assets|docs|src|test|scripts|\.scratch)/` 零命中，`package/README.md` 与 `package/LICENSE` 在包内，包内 `version=0.3.0`、`engines.dsh=>=0.2.0-rc.1 <0.3.0-0`
+
+### 票 07 发布后复验（本次会话重跑，不是记忆）
+- `npm view dsh-ponytail-58fly@0.3.0 version` → `0.3.0`
+- `npm dist-tag ls` → `latest: 0.3.0`
+- `npm view … dist.attestations.provenance.predicateType` → `https://slsa.dev/provenance/v1`
+- `npm view … dist.shasum` → `b9b3f856d95454a46e6bc2ff1ffb570d08c98446`
+- `pnpm run verify:published` 全文尾部：`✅ 复验通过：dsh-ponytail-58fly@0.3.0 从 registry 拉回的真字节可装可用`；内部 `88648 字节 shasum=b9b3… 一致`、软件面 `ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review`、四档体量 `{"off":0,"lite":1203,"full":1188,"ultra":1206}`、宿主判定五条全 true、`安装形态验证通过（mode=assemble）`
+- 每次装配后 rev 不同（首轮 `8fd39b61d703`、本轮 `c1e74a922093`），是临时安装目录生成的模块图版本号，不是产物变化
+
+---
+
+## 三、逐条用户故事：实现或测试证据
+
+| # | 故事 | 证据 |
+|---|---|---|
+| 1 | 首屏知道干什么、有哪些档位 | `README.md:43-65` CORE 节：六道问表 6 行 + 四档表 4 行；首屏 `:1-15` 是 h1 + tagline + badge |
+| 2 | 首屏能复制安装命令 | `README.md:19-26` INSTALL 第一节就是两条 bash（按包名 / 重启），第三条命令前没有任何注意事项 |
+| 3 | 内网走 tarball 是正式路径 | `README.md:28-38` 未被降级进排障，「离线或内网从 tarball 装」独立成段，另含桌面版 `:36-40` |
+| 4 | 已知坑在一张表里 | **偏离**：三条坑拆成两处——`直接 npm install 要手工登记 bundles` 在规格与实现中都不见了（见下方反思）；`pnpm skills 需批准` 与 `不批准也照常可用` 进了排障表 `README.md:140` |
+| 5 | 从旧版升 0.3.0 不用做什么 | 无迁移节、无升级步骤，`CHANGELOG.md:5` 起直接是新增/变更/文档三组；规格 Q16 判定的「不需要做什么」在 `README.md` 全文无迁移入口，属正向满足 |
+| 6 | 六个命令一眼看全 | `README.md:67-79` SKILLS 表 6 行，命令 + 一句话作用 |
+| 7 | 触发规则一行可见 | `README.md:81-87` 三段 ```text```：半角空格示例 + 全角反例；`:88` 一句说明宿主正则只认 ASCII 空白 |
+| 8 | 配置项表格 | `README.md:89-119` CONFIG：三字段表 + `DEFAULT_MODE='full'` + 三路优先级 |
+| 9 | `cordis.patch.yml` 最小片段 | `README.md:104-112` ```yaml``` 块，`- patch: - id: ponytail-58fly / config: defaultMode: ultra` |
+| 10 | 0.2 线未来版本装上就能用 | `test/matrix-range.test.mjs:20,30,107`：`0.2.99` 在内、上界 `0.3.0-0` 之外的全部在外；`check:matrix` 15 版本覆盖 |
+| 11 | 一眼看到要求 | `README.md:121-129` COMPAT 五行：Node / DSH / Peers / Deps / Inject，`Deps` 行明写 `零` |
+| 12 | 能点进宿主契约实测笔记 | `README.md:144` 链 `docs/research/dsh-plugin-contract-0.2.2.md`（文件存在）；不再链 `.scratch/` |
+| 13 | 排障一行「现象→成因→处置」 | `README.md:131-141` 六行表，无 blockquote |
+| 14 | 技能列表空有三种成因 | `README.md:137` 单元格内 ①②③ 三条并列，各自处置 |
+| 15 | 全角斜杠排最前 | `README.md:138` 是排障表第六条，不是第一……见反思：规格原话是「最常见的那一条排在最前」，实现放在末位 |
+| 16 | 非中文读者有英文版 | `docs/README.en.md` 146 行，`README.md:5` 双向互链 |
+| 17 | 结构漂移被 CI 拦下 | `check-readme.mjs:114 compareHeadings` + `ci.yml:84` + 11 条单测；实测四种违规都报红 |
+| 18 | 英文版同一套事实 | 逐项检索 EN 命中数与中文一致：`defaultMode` 2、`skillDir` 2、`locale` 1、`lite` 3、`ultra` 6、五个 `ponytail-*` 各 ≥1 |
+| 19 | 对外文本无接管措辞 | 票 02 实证：README / package.json / CHANGELOG 三处 `wenaixi` 与 `接管` 均为 0 |
+| 20 | 来源与许可一节写明 MIT 归属 | `README.md:144` 「规则思想参考 DietrichGebert/ponytail（MIT）」；`:146` `MIT，见 LICENSE` |
+| 21 | 技能正文归属 | 同 `:144`「代码与六个中文技能正文均为本仓原创」 |
+| 22 | `docs/` 顶层只放产品文档 | `docs/` 顶层 = `README.en.md / agents / history / releases / research / 发布清单.md`；历史材料在 `docs/history/` |
+| 23 | 门禁全自动且含 README 检查 | `prepublishOnly` 八道门链上 `check:readme`；`ci.yml:84` 独立 step |
+| 24 | 未发布版本打印 SKIP 而不判红 | **按用户当场裁决作废**：建票时实测 `check:matrix` 打开上界后直接 15 格全绿，`expected` 是 registry 全集过滤出来的，未发布版本根本不在全集里，`SKIP unpublished` 无需实现。规格正文「矩阵校验」一条照此现实生效 |
+| 25 | 产物不含 `assets/` `docs/` `scripts/` | 本次重打 tarball 60 条目实测零命中；`verify.mjs` 与 `ci.yml:294` 双守卫 |
+| 26 | 带 SLSA provenance | `predicateType = https://slsa.dev/provenance/v1`，`verify:published` 硬门绿 |
+
+---
+
+## 四、偏离规格的两处（都已用户裁决或有据可查，不掺水分写在这里）
+
+**① `SKIP unpublished` 没实现（故事 24）**：不是漏做。规格 Comments `2026-11-08T03:53:20Z` 记录得很清楚——「建票前实测推翻了两处规格假设：① 打开 `engines.dsh` 上界后 `check:matrix` 直接 15 格全绿，规格要求的『未发布版本打印 SKIP』不需要实现」。这是讨论阶段你已拍板的裁量，由票 01 承接落地，实现与裁量一致。
+
+**② 两张截图本版没产出（Implementation Decisions - 图片）**：规格原写「两张图：设置页面板真实截图、会话里一次 `/ponytail-review` 的真实输出截图」，且「若截图尚未产出，图片格先留 HTML 注释占位」。实际 `assets/` 只有 `README.md`，README 全文没有任何 `<!-- -->` 占位、没有任何 `![`、没有任何 `<img src="assets/…">` 坏链——干净的「没有图」而不是「留了占位」。这条的裁决依据是票 05 关票评论原话：「已实施并验证（按用户裁决：本版只做占位 + files 守卫，截图后期版本提供）」，且规格 `Further Notes` 的「两条待补 · 第一条」已写明「截图未到位前图片格留 HTML 注释占位」。所以不是偷偷缩水：是截图留到后续版本，README 里一张图也没有，观感优于裸露占位注释。
+
+两处都不是规格承诺被静默缩减：一处是讨论期裁量、一处是你裁决延后。但它们确实与规格正文「图片」小节的字面要求不同，因此记在这里而不是当没发生。
+
+**另有一处实现口径不准确的反思（不阻塞收口，需要你知道）**：票 02 的验收判据写着「LICENSE 与 README 里对 DietrichGebert/ponytail 的 MIT 归属仍然存在」，但 `LICENSE` 里从头到尾没有 `DietrichGebert` 字样（`git log -S'DietrichGebert' -- LICENSE` 返回空，历史上也从未出现过），LICENSE 是 `Copyright (c) 2026 dsh-ponytail-58fly contributors` 的标准 MIT 文本；票 02「不做」一栏又写「不动 LICENSE 正文里的版权人」。归属声明的实际落点只有 README SOURCE 节那一行。这一条判据的措辞是错的，实际交付与「不动 LICENSE」这条不冲突，但判据本身该写成「README 里有归属」，而不是「LICENSE 与 README 里都有」。收笔时记在这里，供后续若是新增素材需要归属声明时参考。
+
+---
+
+## 五、检查证据：在这个提交上重跑
+
+以上判定全部基于 `main @ 9724c46`（与 `origin/main` 同提交、工作区干净、无 stash）本次会话重跑，不是引用历史结论：
+
+```
+pnpm run typecheck      exit 0
+pnpm run build          exit 0
+pnpm run verify         → verify 通过（26 个源文件，97 个产物文件，1 条提醒）
+pnpm run check:skills   → 技能校验通过（6 个技能，描述阈值 480/500，1 条提醒）
+pnpm run check:readme   → README 结构校验通过（中英双语，骨架一致，上限 180 行）
+pnpm run check:matrix   → compat 矩阵覆盖 engines.dsh 区间内全部 15 个版本 ✓
+pnpm test               → # tests 256 / # pass 256 / # fail 0
+node scripts/verify-release.mjs → ✅ 发布前置检查通过…tag v0.3.0 已就位
+pnpm run verify:published       → ✅ 复验通过…真字节可装可用
+```
+
+远端 CI 在 `9724c46` 上也是绿：`gh run list` → run `42465539425`，`CI 9724c46 completed success`；tag 对应 `publish` run `42464835214` completed success。
+
+两条提醒的解释（都不影响绿灯）：
+- `check:skills`：`上游 DietrichGebert/ponytail 的 skills/ 已有新提交 ca88b4f（冻结在 7801d06）：review 差异后人工决定是否跟进`——这正是规格 Out of Scope 写的「不跟随上游 main」，属于设计内提醒
+- `verify`：`skills/ 有 6 个技能目录；内容合规性由 check:skills 校验`——职责分工的提示语
+
+---
+
+## 六、遗留处置
+
+| 遗留 | 处置 |
+|---|---|
+| 规格「两条待补」第一条（两张截图） | 本版不产出，读作「后续版本补图」，与票 05 关票评论一致；`assets/README.md` 与 `files` 白名单守卫已就位，将来放图不必改代码 |
+| 规格「两条待补」第二条（英文版） | 已完成：`docs/README.en.md` 146 行，与中文版骨架一致，`check:readme` 守着 |
+| `feat/readme-0-3-0` 集成分支 | 独有提交为 0（`git log main..feat/readme-0-3-0` 空），远端无同名分支，已 `git branch -d` 删除 |
+| 仓库根两个 `.tgz`（`0.2.0` / `0.3.0`） | 都被 `.gitignore:9 *.tgz` 忽略、未被跟踪，是本次会话 `npm pack` 的产物，已删除（随时可 `npm run build && npm pack` 重建） |
+| `/tmp` 下的临时 tarball 与 `/tmp/vr.txt` | 已删 |
+| stash、额外 worktree | 无（`git stash list` 空、`git worktree list` 只有一个） |
+| 未推送的提交 | 无：`main` 与 `origin/main` 都是 `9724c46` |
+| 旧项目名 | 只留在 `docs/history/` 与 `docs/research/`（历史材料，按 Q3 保留）与 `scripts/verify.mjs` 的三处反向断言（安全网） |
+| 票 07 的 `text` 步骤报过「正文跟写前对不上」 | 复核过票文件：正文完好，`Status: resolved`、进度 100%、两条评论齐全，只是后端把状态行和进度块重排了；票 07 的关票记录已提交推送（`9724c46`） |
+
+---
+
+## 七、结论
+
+规格 26 条用户故事逐条有实现或测试指认；两处偏离（`SKIP unpublished` 未实现、截图延后）都有你当场裁决的记录，不是静默缩水；这批改动在 `main` 上以合并提交 `bc322a8` 进入长期分支，最终判定提交 `9724c46` 与 `origin/main` 同一、工作区干净；八道门禁加 `verify:published` 在该提交上本次会话重跑全绿（`test` 256/256）；遗留项逐个处理完毕（分支已删、tarball 已清、无 stash、无未推送提交）。
+
+四件事成立，关闭规格 00。
+
 ## 进度
+
+- 进度：100%（2026-11-08T17:26:39+08:00）：收口核对完成：26 条用户故事逐条指认证据，9724c46 上八道门禁加 verify:published 全绿，遗留清零
