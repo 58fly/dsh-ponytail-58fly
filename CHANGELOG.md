@@ -2,6 +2,32 @@
 
 本文件记录面向用户的变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.1] - 2026-11-08
+
+这一版不改运行时行为，只把 0.2.0 打 tag 之后漏在 tag 外面的两处**进包**改动归进来，
+让 `verify-release` 的「tag 之后进包内容不得变化」重新成立。
+0.2.0 的字节与它的 tag 一致，历史没有缺口；缺的是这两处改动没有版本号承载。
+
+### 新增
+
+- **`scripts/verify-published.mjs`（`pnpm run verify:published`）**：问「**别人从 registry 装到的**那份字节能不能用」。
+  它自己按包名去 registry 拉包、核对 `shasum` / `integrity`，再拿这份字节跑装配断言与宿主发现断言；
+  不读仓根任何本地 `.tgz`，也不接受本地文件输入——为的是不给「拿本地包自证」的假绿。
+  这个脚本 0.2.0 就已随 tarball 发出，但当时的 `package.json` 没有对应的包脚本，等于没有入口。
+
+### 文档
+
+- **README 的「启动」段补两条发布后命令**：`pnpm run verify:release`（三方对齐）与 `pnpm run verify:published`（拉真字节复验），
+  并写明它们**刻意不进** `prepublishOnly`——发布前那个版本必然不在 registry 上，放进钩子只会假红。
+- **「发布卡口」表格补第四行**：把「别人装到的那份字节」这一面明确成一道卡口，并指出它的反向用例住在
+  `test/verify-published.test.mjs`（未发布版本 / 端口已关的假 registry / 摘要对不上，各自红在正确结论上）。
+- 安装示例里的 tarball 文件名随版本号同步，不再停在 `0.2.0`。
+
+### 已知限制
+
+`0.2.0` 那次发布没带 `publishConfig` 之外的任何发布期开关，这次也一样：
+发布入口仍然只有 `npm publish`，仍然必吃 `prepublishOnly` 的七道门。
+
 ## [0.2.0] - 2026-11-08
 
 相对 v0.1 的唯一方向性变化是**把客户端半边真的接上**：

@@ -11,7 +11,7 @@
 
 ## 变了什么
 
-| 项 | `@wenaixi/dsh-ponytail` 5.6.2 | `dsh-ponytail-58fly` 0.2.0 |
+| 项 | `@wenaixi/dsh-ponytail` 5.6.2 | `dsh-ponytail-58fly` 0.2.1 |
 | --- | --- | --- |
 | 包名 | `@wenaixi/dsh-ponytail` | `dsh-ponytail-58fly` |
 | 插件 id（配置图里的 `id`、设置命名空间） | `ponytail` | `ponytail-58fly` |
@@ -29,7 +29,7 @@
 dsh plugin --profile web remove @wenaixi/dsh-ponytail
 
 # 2) 装新包（也可以直接按包名装：dsh plugin --profile web add dsh-ponytail-58fly）
-dsh plugin --profile web add /path/to/dsh-ponytail-58fly-0.2.0.tgz
+dsh plugin --profile web add /path/to/dsh-ponytail-58fly-0.2.1.tgz
 
 # 3) 旧的 insert 行要删掉（否则旧 id 还会被插进配置图）
 ```
@@ -85,7 +85,7 @@ dsh plugin --profile web add /path/to/dsh-ponytail-58fly-0.2.0.tgz
 dsh --profile web --dump-config | grep -E 'ponytail(-58fly)?'
 
 # 真装配：六个技能 + 切档 + 零残渣（在仓库里跑）
-node scripts/check-install.mjs --mode assemble --tarball ./dsh-ponytail-58fly-0.2.0.tgz
+node scripts/check-install.mjs --mode assemble --tarball ./dsh-ponytail-58fly-0.2.1.tgz
 ```
 
 第二条命令应当打印 `技能面：ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help, ponytail-review`，

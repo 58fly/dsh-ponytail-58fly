@@ -25,7 +25,7 @@ DSH（DeepSeek Harness）插件：懒人模式（ponytail）。给会话注入�
 
 ## 部署
 
-三种形态都行，**首选按包名装**：版本号可追溯，插件页的更新提示会显示 `0.2.0` 这样的版本号而不是 commit SHA。
+三种形态都行，**首选按包名装**：版本号可追溯，插件页的更新提示会显示 `0.2.1` 这样的版本号而不是 commit SHA。
 
 ### 按包名装（推荐）
 
@@ -57,7 +57,7 @@ dsh plugin --profile web add dsh-ponytail-58fly
 ```bash
 pnpm run build
 npm pack                                    # 产物落在当前目录
-dsh plugin --profile web add ./dsh-ponytail-58fly-0.2.0.tgz
+dsh plugin --profile web add ./dsh-ponytail-58fly-0.2.1.tgz
 ```
 
 **这条路的已知边界**：tarball 手工安装不会替你把对等依赖补装进来。
