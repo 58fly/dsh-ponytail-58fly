@@ -1,6 +1,7 @@
 # 四类检查，各自回答一个不同的问题：
 #
-#   quality  —— 在当前 dsh（0.2.2-rc.1）上，四条链路是否全绿：typecheck / build / verify / test。
+#   quality  —— 在当前 dsh（0.2.2-rc.1）上，四条链路是否全绿：typecheck / build / verify / test，
+#               外加三道内容门：check:skills（技能契约）/ check:readme（README 骨架）/ check:matrix（区间覆盖）。
 #   compat   —— 在 engines.dsh 声明的整个范围上（0.2.0-rc.1 … 0.2.2-rc.1，共 15 个已发布版本）
 #               逐格跑四条链路，并在每格真装一次、真装配一次。矩阵与 registry 的一致性由
 #               scripts/dsh-matrix.mjs 断言（engines.dsh 改了而本表没跟上 = 红）。
@@ -12,7 +13,7 @@
 #               装完再卸是否什么都不剩（$DSH_HOME 装前/装后/卸载后三张快照做差集）。
 #   pack     —— 产物纯度与清单一致性：tarball 里不许出现 src/、test/、.d.ts.map、tsbuildinfo、
 #               不许有 new Function/eval( 这类动态代码执行；cordis.patch.yml 与 package.json/源码一致；
-#               CHANGELOG 顶部版本行与 tarball 版本一致、迁移说明存在。
+#               CHANGELOG 顶部版本行与 tarball 版本一致。
 #
 # 为什么 install 必须独立成 job 而不能塞进 quality 末尾：
 # 它要跑 pnpm install 到临时目录、要打 tarball，任何一步失败都该让"包不可安装"这个
@@ -79,6 +80,9 @@ jobs:
           # 漂移检查要查冻结 tree 还在不在；不配 token 会吃 60/小时 的共享限流。
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: README 结构（行数上限/层级/必留节/双语骨架一致）
+        run: pnpm run check:readme
+
       - name: 测试
         run: pnpm test
 
@@ -88,7 +92,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # engines.dsh 写的是 >=0.2.0-rc.1 <0.2.3-0。这里**穷举** npm 上落在这个区间里的
+        # engines.dsh 写的是 >=0.2.0-rc.1 <0.3.0-0。这里**穷举** npm 上落在这个区间里的
         # 全部 15 个版本，而不是抽两格：区间是给用户看的承诺，承诺的每一格都该有人跑过。
         # 新增版本时由 scripts/dsh-matrix.mjs 从 registry 算出来并断言与本表一致
         # （见 quality job 的"矩阵已覆盖 registry 全系列"一步）。
@@ -286,7 +290,8 @@ jobs:
           #
           # 注意这里必须分成两段判：'\\.(ts|tsx)$' 会连 .d.ts 一起命中（.d.ts 也以 .ts 结尾），
           # 而 *.d.ts 是必须发布的声明文件。先滤掉 .d.ts 再判后缀，才抓到真的源码泄漏。
-          BAD_OTHER='\.d\.ts\.map$|\.tsbuildinfo$|^package/(src|test|scripts|docs|\.scratch|\.github)/'
+          # assets/ 与 docs/ 同理：README 截图靠 GitHub raw URL 渲染，进 tarball 只是白送体积。
+          BAD_OTHER='\.d\.ts\.map$|\.tsbuildinfo$|^package/(src|test|scripts|docs|assets|\.scratch|\.github)/'
           if grep -Eq "$BAD_OTHER" /tmp/pack-list.txt; then
             echo "tarball 里混进了不该发布的文件："
             grep -Eq "$BAD_OTHER" /tmp/pack-list.txt
@@ -350,7 +355,8 @@ jobs:
       - name: 发布说明与实际 tarball 一致
         run: |
           # 卡口③（清单）的文档面：CHANGELOG 顶部版本 == package.json 版本，
-          # 迁移文档必须存在（它不进 tarball，是仓内文档，但发出前必须有）。
+          # 且发布清单必须存在（它不进 tarball，是仓内文档，但发出前必须有）。
+          # 历史材料（docs/history/）不参与这道门：那是内部记录，不是产品文档。
           node - <<'NODE'
           const { readFileSync, existsSync } = require('node:fs');
           const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -360,9 +366,9 @@ jobs:
             console.error('CHANGELOG 顶部版本行与 package.json 不符：' + first + ' vs ' + pkg.version);
             process.exit(1);
           }
-          if (!existsSync('docs/migration-from-wenaixi.md')) {
-            console.error('缺少 docs/migration-from-wenaixi.md');
+          if (!existsSync('docs/发布清单.md')) {
+            console.error('缺少 docs/发布清单.md：发版步骤是发布门的一部分，不能只活在脑子里。');
             process.exit(1);
           }
-          console.log('CHANGELOG 版本 ' + pkg.version + ' 与迁移文档齐备 ✓');
+          console.log('CHANGELOG 版本 ' + pkg.version + ' 与发布清单齐备 ✓');
           NODE

@@ -1,0 +1,29 @@
+=== 0.3.0 版本与品牌自证（2026-11-08）===
+
+--- package.json 关键字段 ---
+version = 0.3.0
+engines.dsh = >=0.2.0-rc.1 <0.3.0-0
+files = ["lib/**/*.js","lib/types/**/*.d.ts","skills/","cordis.patch.yml","README.md","LICENSE"]
+description = A lazy-mode plugin for DeepSeek Harness: mode-graded decision guidance, fence-aware prompt filtering and a two-language skill catalog.
+
+--- 旧项目名残留 ---
+README.md: 0
+CHANGELOG.md: 0
+package.json: 0
+src/ 里旧项目名提及: 0 处（0 = 已清）
+scripts/ 里 wenaixi: 3 处，全部是 @wenaixi/ 的反向断言（防止客户端 require 不存在的模块）
+
+--- 接管/takeover 于对外文件 ---
+README.md: 0
+docs/README.en.md: 0
+package.json: 0
+
+--- README 行数与双语骨架 ---
+     139 README.md
+     139 docs/README.en.md
+     278 total
+README 结构校验通过（中英双语，骨架一致，上限 180 行）
+
+--- 品牌归属出现次数（MIT 归属，合规保留）---
+README.md: 1
+docs/README.en.md: 1

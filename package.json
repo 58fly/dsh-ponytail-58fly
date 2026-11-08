@@ -1,9 +1,9 @@
 {
   "name": "dsh-ponytail-58fly",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
-  "description": "A self-maintained lazy-mode plugin for DeepSeek Harness: mode-graded guidance, fence-aware prompt filtering and a two-language skill catalog.",
+  "description": "A lazy-mode plugin for DeepSeek Harness: mode-graded decision guidance, fence-aware prompt filtering and a two-language skill catalog.",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -62,7 +62,7 @@
   },
   "engines": {
     "node": ">=20",
-    "dsh": ">=0.2.0-rc.1 <0.2.3-0"
+    "dsh": ">=0.2.0-rc.1 <0.3.0-0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.1.0",
@@ -74,11 +74,12 @@
     "verify": "node scripts/verify.mjs",
     "check:skills": "node scripts/check-skills.mjs",
     "check:matrix": "node scripts/dsh-matrix.mjs --check",
+    "check:readme": "node scripts/check-readme.mjs",
     "measure": "node scripts/measure-prompt.mjs",
     "verify:release": "node scripts/verify-release.mjs --verify",
     "verify:published": "node scripts/verify-published.mjs",
     "test": "node --test test/*.test.mjs",
-    "prepublishOnly": "pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs"
+    "prepublishOnly": "pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:readme && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "~4.1.0",

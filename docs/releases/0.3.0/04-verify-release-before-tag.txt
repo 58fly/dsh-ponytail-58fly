@@ -1,0 +1,20 @@
+=== 0.3.0 verify-release 打 tag 前的预期红（2026-11-08）===
+
+# 预期：工作区未提交 + 无 tag v0.3.0，两条红；第三道 CHANGELOG 小节必须已经绿
+node scripts/verify-release.mjs
+
+❌ 发布校验失败（2 项）
+
+  - 工作区有 5 处未提交改动，禁止发布
+    → 先 git add -A && git commit，再打 tag、push，最后才发布
+
+  - 本地不存在 tag v0.3.0，GitHub 侧将无法追溯这个版本
+    → git tag v0.3.0 && git push origin main && git push origin v0.3.0
+
+铁律：Git 先行，npm 后发。
+
+exit 1
+
+--- CHANGELOG 顶部小节实测 ---
+## [0.3.0] - 2026-11-08
+

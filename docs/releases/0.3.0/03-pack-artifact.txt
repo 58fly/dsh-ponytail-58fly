@@ -1,0 +1,72 @@
+=== 0.3.0 pack 产物检查（2026-11-08）===
+
+# npm pack 落在临时目录，避免污染仓根
+dsh-ponytail-58fly-0.3.0.tgz
+
+--- 产物清单（60 个条目）---
+package/LICENSE
+package/README.md
+package/cordis.patch.yml
+package/lib/client.js
+package/lib/commands/ponytail.js
+package/lib/config/events.js
+package/lib/config/priority.js
+package/lib/config/runtime.js
+package/lib/config/schema.js
+package/lib/config/volatile.js
+package/lib/l0/diagnosis.js
+package/lib/l0/errors.js
+package/lib/l0/mode.js
+package/lib/l0/paths.js
+package/lib/l0/within.js
+package/lib/plugin.js
+package/lib/prompt/fence.js
+package/lib/prompt/index.js
+package/lib/prompt/ladder.js
+package/lib/prompt/notice.js
+package/lib/prompt/port.js
+package/lib/prompt/prestep.js
+package/lib/prompt/render.js
+package/lib/prompt/source.js
+package/lib/skills/description.js
+package/lib/skills/frontmatter.js
+package/lib/skills/provider.js
+package/lib/state/sessions.js
+package/lib/types/commands/ponytail.d.ts
+package/lib/types/config/events.d.ts
+package/lib/types/config/priority.d.ts
+package/lib/types/config/runtime.d.ts
+package/lib/types/config/schema.d.ts
+package/lib/types/config/volatile.d.ts
+package/lib/types/l0/diagnosis.d.ts
+package/lib/types/l0/errors.d.ts
+package/lib/types/l0/mode.d.ts
+package/lib/types/l0/paths.d.ts
+package/lib/types/l0/within.d.ts
+package/lib/types/plugin.d.ts
+package/lib/types/prompt/fence.d.ts
+package/lib/types/prompt/index.d.ts
+package/lib/types/prompt/ladder.d.ts
+package/lib/types/prompt/notice.d.ts
+package/lib/types/prompt/port.d.ts
+package/lib/types/prompt/prestep.d.ts
+package/lib/types/prompt/render.d.ts
+package/lib/types/prompt/source.d.ts
+package/lib/types/skills/description.d.ts
+package/lib/types/skills/frontmatter.d.ts
+package/lib/types/skills/provider.d.ts
+package/lib/types/state/sessions.d.ts
+package/package.json
+package/skills/UPSTREAM.json
+package/skills/ponytail-audit/SKILL.md
+package/skills/ponytail-debt/SKILL.md
+package/skills/ponytail-gain/SKILL.md
+package/skills/ponytail-help/SKILL.md
+package/skills/ponytail-review/SKILL.md
+package/skills/ponytail/SKILL.md
+
+--- 断言：不得出现 src/ docs/ test/ assets/ scripts/ .scratch/ .github/ ---
+（无命中，符合预期）
+
+--- 断言：package.json 的 version 与文件名一致 ---
+tarball 内 version = 0.3.0 | engines.dsh = >=0.2.0-rc.1 <0.3.0-0
