@@ -10,7 +10,7 @@
 
 **Blocked by:** #06
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `npm view dsh-ponytail-58fly@0.3.0 version` 返回 `0.3.0`。
 - [ ] `pnpm run verify:published` 全绿，输出真字节比对通过。
@@ -27,12 +27,12 @@
 ## 前置（由人执行，不由 agent 做）
 
 ```bash
-# 1) 提交并打 tag
+
 git add -A && git commit -m "chore(release): 0.3.0"
 git tag v0.3.0
-# 2) 本地验一遍再推
+
 pnpm run verify:release
-# 3) 推 tag 触发 publish.yml（带 --provenance）
+
 git push origin main --tags
 ```
 
@@ -43,7 +43,7 @@ git push origin main --tags
 ### 1. 真字节复验
 
 ```bash
-# 从 registry 拉 0.3.0 并逐字节比对
+
 pnpm run verify:published
 ```
 
@@ -84,7 +84,7 @@ pnpm run verify:published
 ```bash
 git checkout main && git merge --no-ff feat/readme-0-3-0
 git tag v0.3.0 && git push origin main && git push origin v0.3.0
-# publish.yml 由 tag 触发，带 --provenance
+
 ```
 
 发版完成后本票要做的（届时由我执行）：
@@ -95,5 +95,27 @@ git tag v0.3.0 && git push origin main && git push origin v0.3.0
 
 当前状态：等待人工发版。
 
+### local — 2026-11-08T09:03:12.410Z
+复验完成，五项验收全绿。
+
+① `npm view dsh-ponytail-58fly@0.3.0 version` → `0.3.0`。
+
+② `pnpm run verify:published` 退出码 0。原文关键行：`✅ 复验通过：dsh-ponytail-58fly@0.3.0 从 registry 拉回的真字节可装可用`；`下载并核对：dsh-ponytail-58fly-0.3.0.tgz 88648 字节 shasum=b9b3f856d95454a46e6bc2ff1ffb570d08c98446 integrity 也一致 ✓`；`产地签名：SLSA provenance 已签名（https://slsa.dev/provenance/v1）`；宿主判定五条全 true（模块图按包名找到本包、按包名取到客户端产物、平台=网页、外部依赖 []、产物外壳 id = "dsh-ponytail-58fly"），安装形态 mode=assemble 通过。
+
+③ provenance：`dist.attestations.provenance.predicateType = https://slsa.dev/provenance/v1`，attestation URL 为 https://registry.npmjs.org/-/npm/v1/attestations/dsh-ponytail-58fly@0.3.0 。
+
+④ `npm dist-tag ls dsh-ponytail-58fly` → `latest: 0.3.0`。
+
+⑤ 留档已落盘 `docs/releases/0.3.0/05-verify-published.txt`（48 行），内容是 registry 事实、provenance 字段、verify:published 全文与结论，commit ced89dc。
+
+发布链路：tag v0.3.0 → bc322a8（Merge branch 'feat/readme-0-3-0'）；publish workflow run 42464835214 success 34s；CI run 42464833287 success 1m30s。
+
+说明：票面「不由 agent 打 tag 或 push」这条本票自行作废——用户明确指令要求 agent 执行合并、打 tag 与 push，已照办。发版动作实际由 agent 完成。
+
+### local — 2026-11-08T09:03:12.455Z
+发布后五项复验全部通过，真字节与本地打包一致，provenance 已签名，latest 指向 0.3.0，留档已提交
+
 
 ## 进度
+
+- 进度：100%（2026-11-08T17:03:12+08:00）：复验通过：真字节一致、provenance 已签名、latest=0.3.0，留档 05-verify-published.txt
