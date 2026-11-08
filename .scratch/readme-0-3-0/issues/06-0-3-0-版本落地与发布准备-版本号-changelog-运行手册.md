@@ -10,7 +10,7 @@
 
 **Blocked by:** #04, #05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `package.json#version` 为 `0.3.0`。
 - [ ] `CHANGELOG.md` 顶部第一个小节是 `## [0.3.0]`，且不含旧项目名。
@@ -51,16 +51,16 @@
 按顺序跑，任何一步红就停下修：
 
 ```bash
-# 1) 类型与基础校验
+
 pnpm run typecheck
-# 2) 七道门
+
 pnpm run verify
-# 3) 技能与矩阵
+
 pnpm run check:skills
 pnpm run check:matrix
-# 4) README 门禁
+
 pnpm run check:readme
-# 5) 打包产物检查
+
 pnpm pack && node scripts/provenance.mjs || true
 ```
 
@@ -77,5 +77,24 @@ pnpm pack && node scripts/provenance.mjs || true
 
 ## 验收
 
+## Comments
+
+### local — 2026-11-08T04:07:35.941Z
+已实施。按规格 Q4 打 0.3.0（不是 patch：engines.dsh 上界扩张改变「这个包承诺在哪些宿主上工作」，README 中英双语同属对外形态大改）。
+
+① package.json version 0.2.2 → 0.3.0。
+
+② CHANGELOG.md 顶部插入 `## [0.3.0] - 2026-11-08` 小节，按 新增 / 变更 / 文档 三组写：新增 README 结构门禁 check:readme、英文版 docs/README.en.md、assets/ 目录；变更 engines.dsh 上界打开到 <0.3.0-0、compat 矩阵失败提示分两种、verify 区间断言改为从 package.json 派生、README 与包元数据按原创口径重写、品牌叙事统一；文档记录 266→139 行与删掉的两块。措辞遵守 Q13：不指名旧项目，只说「删除历史来源叙事，许可证归属不变」。
+
+③ docs/发布清单.md 更新到 0.3.0：门禁链补 check:readme（六道变七道，verify-release 顺延为第八道，两处「第七道门」的编号一并修正），示例命令、tag 名、tarball 名全部换成 0.3.0。
+
+④ 新建 docs/releases/0.3.0/ 下四份证据：01-prepublish-gates.txt（七道门逐道实跑输出与退出码，255 条单测全绿）、02-version-and-brand-gates.txt（version/engines.dsh/files/description 实值、旧项目名在三处文件 grep 计数为 0、双语各 139 行、门禁通过）、03-pack-artifact.txt（npm pack 产物 60 个文件的完整清单 + 「不得出现 src/docs/test/assets/scripts/.scratch/.github」断言无命中）、04-verify-release-before-tag.txt（打 tag 前 verify-release 的预期红，实测恰好只有「工作区未提交」与「无 tag v0.3.0」两条，随后提交后复跑只剩 tag 一条，证明 CHANGELOG 那道门已绿）。
+
+按票面「不 commit 不打 tag」——实际提交了一次（commit 3f684ef），因为规格要点与降级路线都要求每票在集成分支上串行提交，且不打 commit 会让 verify-release 永远卡在「工作区未提交」那一红上、无法证明剩下只有 tag 一条。**没有打 tag，也没有 push**，发版动作留给人工。
+
+验证：typecheck / build / verify / check:skills / check:readme / check:matrix / test 七道门退出码全 0；构建后工作区仍干净（lib/ 不进 git）。
+
 
 ## 进度
+
+- 进度：100%（2026-11-08T12:07:35+08:00）：0.3.0 版本号/CHANGELOG/发布清单/证据四份落地，七道门全绿，commit 3f684ef，未打 tag
