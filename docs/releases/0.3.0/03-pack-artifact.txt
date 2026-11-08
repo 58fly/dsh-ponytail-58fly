@@ -1,10 +1,9 @@
 === 0.3.0 pack 产物检查（2026-11-08）===
 
-# npm pack 不带 --pack-destination 会落在当前目录，这里用临时目录
-npm notice
+# npm pack 落在临时目录，避免污染仓根
 dsh-ponytail-58fly-0.3.0.tgz
 
---- 产物清单 ---
+--- 产物清单（60 个条目）---
 package/LICENSE
 package/README.md
 package/cordis.patch.yml
@@ -69,3 +68,5 @@ package/skills/ponytail/SKILL.md
 --- 断言：不得出现 src/ docs/ test/ assets/ scripts/ .scratch/ .github/ ---
 （无命中，符合预期）
 
+--- 断言：package.json 的 version 与文件名一致 ---
+tarball 内 version = 0.3.0 | engines.dsh = >=0.2.0-rc.1 <0.3.0-0

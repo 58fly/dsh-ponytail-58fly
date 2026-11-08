@@ -1,41 +1,34 @@
-=== 0.3.0 发布前置门（本地实跑，2026-11-08）===
+=== 0.3.0 七道门复跑（自查两处修正之后，2026-11-08）===
 
-环境：node v22.22.3 / pnpm 12.16.1 / npm 10.9.8
-
---- 第 1 道 typecheck ---
-[WARN] The store at /Users/sunkai/Library/pnpm/store/v11 is not used because packages cannot be hard linked from it into this project. Using the store at /Volumes/data/.pnpm-store/v11 instead. Set storeDir to choose the store.
-✓ Lockfile passes supply-chain policies (verified 20h ago)
-Lockfile is up to date, resolution step is skipped
-Already up to date
-Done in 103ms using pnpm v12.16.1
+--- 第 1 道：typecheck ---
 $ tsc --noEmit
 exit 0
 
---- 第 2 道 build ---
+--- 第 2 道：build ---
 $ tsc -p tsconfig.build.json && node scripts/build-client.mjs
 client bundle -> lib/client.js (16322 bytes, id=dsh-ponytail-58fly)
 external requires: @deepseek-ai/dsh-client-ui-primitives, react, react/jsx-runtime
 exit 0
 
---- 第 3 道 verify ---
+--- 第 3 道：verify ---
 warn: skills/ 有 6 个技能目录；内容合规性由 pnpm run check:skills 校验
 verify 通过（26 个源文件，97 个产物文件，1 条提醒）
 exit 0
 
---- 第 4 道 check:skills ---
+--- 第 4 道：check:skills ---
 warn: 上游漂移检查跳过（GitHub 限流 HTTP 403）：CI 里请配 GITHUB_TOKEN
 技能校验通过（6 个技能，描述阈值 480/500，1 条提醒）
 exit 0
 
---- 第 5 道 check:readme ---
+--- 第 5 道：check:readme ---
 README 结构校验通过（中英双语，骨架一致，上限 180 行）
 exit 0
 
---- 第 6 道 check:matrix ---
+--- 第 6 道：check:matrix ---
 compat 矩阵覆盖 engines.dsh 区间内全部 15 个版本 ✓
 exit 0
 
---- 第 7 道 test ---
-# tests 255
-# pass 255
+--- 第 7 道：test ---
+# tests 256
+# pass 256
 # fail 0
