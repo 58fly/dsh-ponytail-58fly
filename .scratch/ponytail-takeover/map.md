@@ -1,6 +1,6 @@
 <!-- DSH-FORMAT: md-v1 -->
 <!-- DSH-TITLE: 接管 ponytail：在 DSH 0.2.x 上重写一个自维护的懒人模式插件 -->
-<!-- DSH-STATUS: ready-for-agent -->
+<!-- DSH-STATUS: closed -->
 <!-- DSH-LABELS: wayfinder:map -->
 <!-- DSH-IDEMPOTENCY-KEY: deck-plan-ponytail-takeover-v1-map -->
 <!-- DSH-CREATED: 2026-11-07T03:34:34.129Z -->
@@ -312,6 +312,8 @@
 第二次完成核对（14/14，只信证据）：Destination 八条判据逐条取证全部成立——判据 1 用 `check-install --mode assemble` 在临时 profile 里真装 0.2.0 tarball（import ok、技能面六个、四档体量 1203/1188/1206、`$DSH_HOME` 零垃圾）；判据 2 用 `measure` 得整条 prompt 3005/3005 字节逐字节相同；判据 3 与 4 的 grep 计数为 0；判据 5 的 V15 夹具仍在；判据 6 由 client-wiring + commands 两套测试与 verify 双向联动检查兜住；判据 7 的 `RUNTIME_ALLOWED_BARE` 与动态代码扫描器在位；判据 8 由 `within.ts` + 14 条测试钉住。六道质量门重跑全绿（test 205/205、verify 26/97、skills 6、matrix 15、measure、assemble）。**判定「需要接着做」**：`npm view dsh-ponytail-58fly` 仍 404，Destination 的「发布」还没发生；三条 fog 已分流（usage dashboard 与技能级单开关进 Out of scope，真机装载验证进交棒）。地图**不关闭**，等 /to-spec 与 /to-tickets 两个交接完成后再收尾。
 ## 进度
 
+- 进度：100%（2026-11-08T17:35:40+08:00）：第三次完成核对：八条判据逐条重新取证成立，八道门全绿，地图关闭
+
 | 时间 | 动作 | 结果 |
 |---|---|---|
 | 2026-11-07 | 12 张票全部解完并关票（01 grilling / 02 prototype / 03·04·05·06·07·10·11 task / 08·09·12 research） | 代码 25 源文件 / 185 条测试 / 六道质量门全绿 |
@@ -323,5 +325,32 @@
 | 2026-11-08 | **/to-spec 交棒第一步**：产出规格并发到 tracker | `.scratch/publish-0.2.0/spec.md`（198 行 / 21149 字节，`ready-for-agent`）；接缝实测跑通（正向一次 + 反向五态）；原计划的真宿主进程断言被证伪并降级为「宿主发现函数」断言；规格等本人确认接缝后走 /to-tickets |
 | 2026-11-08 | **/to-tickets 交棒第二步**：按已确认接缝拆实施票 | 4 张 tracer-bullet 票落 `.scratch/publish-0.2.0/issues/`：01 宿主发现断言（无前置）、02 清单与安装文档（无前置）、03 发布后复验（等 01）、04 首次发布（等 01+02+03）；**前沿 = 01 与 02 并行** |
 | 2026-11-08 | **实施票 4 张全部解完**（01 / 02 / 03 / 04） | 01 加宿主判定五项 + 三破一复（selftest 19/19）；02 安装文档改按包名装 + 出处字段 + 发布清单七道门；03 新建 `verify:published`（从 registry 拉真字节复验，16 条测试）；04 真发布 0.2.0 并留档七份证据。全量 **221/221 pass**，`verify:published` exit 0。**前沿为空** |
+| 2026-11-08 | **第三次地图完成核对 + 关闭**（本轮按八条判据重新取证，不看数字） | 八条判据全部重新取到证据（见「探索结论」表下方本轮备注）；`npm test` 256/256、`npm run verify` 26 源文件 / 97 产物、`check:matrix` 15 版本；零待决事项、零未交活的 fog、零无主票 → 判定「不需要接着做」，写结论、留收尾评论并关闭 |
 
-**探索结束，交接完成，施工也已走完**：14 张探索票全部 resolved（无漏关、无误开），Destination 八条判据于 2026-11-08 逐条取证全部成立；`/to-spec` 与 `/to-tickets` 两步交接完成后拆出的 4 张实施票（01 宿主看见我们 / 02 发布前置 / 03 发布后复验 / 04 首次发布）截至 2026-11-08 也全部 resolved，**前沿为空**。节点成果：`dsh-ponytail-58fly@0.2.0` 已在 npm 上（`latest` 指向它，60 文件、`shasum a839091f…`），任何人 `dsh plugin --profile <name> add dsh-ponytail-58fly` 就能装；「宿主看得见我们」已是机器证据而非推断。**下一步由本人点详情页「完成」做最终核对，地图算不算走完由那次核对宣布**（届时按 wayfinder 规则关闭这张地图）。
+**当前状态（2026-11-08 17:35，第三次核对）：探索结束、两个交接完成、施工走完、地图已关闭。**
+
+三次核对叠起来看，这张地图的真实路线是：14 张探索票 → 判据 8 与客户端入口两处没落地（补 #13 / #14）→ 判据全部成立 → /to-spec → /to-tickets 拆 4 张实施票 → 4 张实施完 → 0.2.0 真发布 → 后续 readme-0-3-0 把版本推到 0.3.0。取数不看数字，看证据：
+
+| 判据 | 本轮（2026-11-08 17:35）重新取到的证据 |
+|---|---|
+| 1 干净宿主可装 | 0.3.0 从 registry 拉回真字节后在临时 profile 真装：`docs/releases/0.3.0/05-verify-published.txt`（88648 B、shasum `b9b3f856…` 与 integrity 双一致、技能面六个、四档体量 `{"off":0,"lite":1203,"full":1188,"ultra":1206}`、`安装形态验证通过（mode=assemble）`）；`npm run check:matrix` 本轮跑出「兼容矩阵覆盖 engines.dsh 区间内全部 15 个版本 ✓」；`engines.dsh` 实测 `>=0.2.0-rc.1 <0.3.0-0`，本机宿主实测 `0.2.2-rc.1` 落在区间内 |
+| 2 零缓存破坏三层 | `npm run measure` 本轮重跑：整条 prompt 切档前 3005 B / 切档后 3005 B、**逐字节相同 true**，ponytail 段 2955 / 2955，当轮 reminder 3167 B |
+| 3 零 tool + 6 技能经 provider | `grep -rn "ctx.tools\|registerTool" src/` 本轮计数 **0**；技能面六个（ponytail / -audit / -debt / -gain / -help / -review）在 README 与 check:skills 双处一致 |
+| 4 净删自愈链与持久化 | `grep -rln "session-states\|ponytail-active\|LRU\|heal\|自愈" src/ test/ scripts/` 本轮命中 **0 个文件** |
+| 5 围栏感知 + 真 Cordis 组合 | `test/ladder.test.mjs:80` 的 V15 夹具在位；`test/composition.test.mjs` 用 `new Context()` + `ctx.plugin()` |
+| 6 客户端 UI 可降级（含**真机装载**） | 判据 6 当初留的尾巴本轮补齐：0.3.0 真装进了本机 `~/.dsh/profiles/desktop`，宿主重启后本会话的技能列表里六个 ponytail 技能全部出现——真机装载不再是推断 |
+| 7 发行物纯度 | `npm run verify` 本轮通过（26 源文件 / 97 产物 / 1 提醒）；tarball 60 条目里无 `src|test|scripts|docs|assets|.scratch|.github`，运行时依赖白名单只有 cordis / schemastery |
+| 8 skillDir 越界防护 | `src/l0/within.ts`（4597 B 纯函数）+ `test/skills-within.test.mjs` **14** 条，本轮实数 |
+
+**判定（收尾口径）：不需要接着做。** 三件事让这条路走到终点——① 八条判据逐条有本轮证据，不是继承旧结论；② 交棒两段（/to-spec、/to-tickets）早在 2026-11-08 完成，拆出的 4 张实施票全部 resolved，无在跑的活；③ 全量门本轮重跑 256/256 pass，`verify` / `check:matrix` / `measure` 全绿。按 wayfinder 判定树这属于「结论就是最终决定，改动已经在这张 map 里做完了」那一支，所以**不生成新规格、不拆新 ticket**，只写结论、留收尾评论、关闭地图。
+
+**已知但不阻塞的三处口径漂移**（写在这里，免得日后当成新发现）：① 本图成立时 `latest` 是 0.2.0，此后 0.3.0 已发，且 0.3.0 把 README 从 269 行重排成 146 行——本图判据不涉及 README，但图里早期「三份文档口径」那几句描述的是当时的文本；② `docs/releases/0.2.0/` 与 `0.3.0/` 两套证据并存，各管各的版本，都不作废；③ 本图标题与 Notes 仍写着上游 `Wenaixi/dsh-ponytail`——那是本 effort 立项时的历史坐标，按品牌规则对外不再提，仓内保留可追溯。
+
+### local — 2026-11-08T17:35:00.000Z
+**第三次完成核对（收尾）：探索与交接都已完成，地图到此关闭。** 本轮不看 14/14 这个数字，把 Destination 八条判据重新取了一遍证据：判据 1 用 0.3.0 从 registry 拉回真字节在临时 profile 真装（`docs/releases/0.3.0/05-verify-published.txt`，88648 B、shasum 与 integrity 双一致、技能面六个、四档体量 `{"off":0,"lite":1203,"full":1188,"ultra":1206}`、`安装形态验证通过（mode=assemble）`）+ `check:matrix` 覆盖区间内 15 个版本 + `engines.dsh` `>=0.2.0-rc.1 <0.3.0-0` 对上本机宿主 `0.2.2-rc.1`；判据 2 用 `measure` 得 3005/3005 B 逐字节相同 true；判据 3 的 `ctx.tools`/`registerTool` 计数 0、技能面六个；判据 4 的自愈链/LRU/持久化关键词命中 0 个文件；判据 5 的 V15 夹具在 `test/ladder.test.mjs:80`、`test/composition.test.mjs` 用 `new Context()`；判据 6 当年留的真机装载尾巴本轮补齐——0.3.0 真装进 `~/.dsh/profiles/desktop`，宿主重启后本会话技能列表出现六个 ponytail 技能；判据 7 `npm run verify` 通过（26 源文件 / 97 产物 / 1 提醒）；判据 8 `src/l0/within.ts` 4597 B + `test/skills-within.test.mjs` 14 条实数。全量门本轮重跑 `npm test` **256/256 pass / 0 fail**。
+
+**判定「不需要接着做」**：交棒两段早在 2026-11-08 走完（/to-spec 产出 `.scratch/publish-0.2.0/spec.md`、/to-tickets 拆出 4 张实施票并全部 resolved），无在跑的活、无待决事项、无未交活的 fog、无无主票。按 wayfinder 判定树属于「结论即最终决定 + 改动已在本 map 内做完」那一支，因此**不生成新规格、不拆新 ticket**，也不提 /to-spec 与 /to-tickets。
+
+**三处已知但不阻塞的口径漂移**（本次一并记明，免得日后被当成新发现）：① 本图 2026-11-08 成立时 npm `latest` 是 0.2.0，此后 readme-0-3-0 一轮推进到 0.3.0（现行 `latest` = 0.3.0，已发布 0.0.0-stage / 0.2.0 / 0.2.1 / 0.2.2 / 0.3.0），该轮只改对外形态（README 269→146 行、双语、宿主区间上界打开），不动本图八条判据任何一条；② `docs/releases/0.2.0/` 与 `docs/releases/0.3.0/` 两套证据并存，各管各的版本，都不作废；③ 本图标题与 Notes 里仍写着上游 `Wenaixi/dsh-ponytail`，那是立项时的历史坐标，按品牌规则对外不再提，仓内保留可追溯，不构成待办。
+
+**收尾动作**：结论已写进正文「探索结论」节（八条判据证据表 + 判定 + 口径漂移），进度表补了本轮一行，本评论即地图的总结评论，随后关闭地图。地图到此结束。
