@@ -3,7 +3,7 @@
   "version": "0.2.2",
   "private": false,
   "type": "module",
-  "description": "A self-maintained lazy-mode plugin for DeepSeek Harness: mode-graded guidance, fence-aware prompt filtering and a two-language skill catalog.",
+  "description": "A lazy-mode plugin for DeepSeek Harness: mode-graded decision guidance, fence-aware prompt filtering and a two-language skill catalog.",
   "keywords": [
     "dsh",
     "dsh-plugin",

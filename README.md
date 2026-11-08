@@ -2,7 +2,7 @@
 
 DSH（DeepSeek Harness）插件：懒人模式（ponytail）。给会话注入一条「少写代码、先找现成方案」的决策阶梯，并按 `off / lite / full / ultra` 四档调节强度。
 
-本项目是 [Wenaixi/dsh-ponytail](https://github.com/Wenaixi/dsh-ponytail) 的接管重写版。上游已停止维护，且其 `src/` 是 9 个平铺文件、2709 行、72 处 `as` 断言、lib/ 提交进 Git 的形态。本仓库按「宿主契约先行、零断言、零运行时依赖」重写，取舍与证据见 `docs/research/` 与 `.scratch/ponytail-takeover/map.md`。
+规则思想参考 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)（MIT）；代码与六个中文技能正文为本仓原创。设计取舍与宿主契约实测证据见 `docs/research/`。
 
 ## 用途
 
@@ -29,7 +29,7 @@ DSH（DeepSeek Harness）插件：懒人模式（ponytail）。给会话注入�
 
 ### 按包名装（推荐）
 
-把包名交给 profile 的插件管理器。`--profile` 必填，写你的 profile 名——官方模板是 `web` / `headless` / `acp` / `sdk` / `sdk-minimal`；`desktop` 由应用独占，命令行不接管：
+把包名交给 profile 的插件管理器。`--profile` 必填，写你的 profile 名——官方模板是 `web` / `headless` / `acp` / `sdk` / `sdk-minimal`；`desktop` 由应用独占，命令行不接受该值：
 
 ```bash
 dsh plugin --profile web add dsh-ponytail-58fly
@@ -264,4 +264,6 @@ pnpm run check:skills
 
 ## 许可
 
-MIT，见 [LICENSE](LICENSE)。上游 `Wenaixi/dsh-ponytail` 同为 MIT；技能正文来自 `DietrichGebert/ponytail`（MIT）。
+MIT，见 [LICENSE](LICENSE)。
+
+规则思想参考 [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail)（MIT）；代码与六个中文技能正文为本仓原创。

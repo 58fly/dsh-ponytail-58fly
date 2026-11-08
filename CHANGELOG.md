@@ -141,6 +141,6 @@ v0.1 是纯宿主侧发布（`dsh.client` 不声明、`lib/client.js` 不注册�
   宿主 `dsh-skill` 的 Config 没有 `enabled` 字段，技能级开关在宿主侧不存在，
   面板只标注「这条技能属于哪个 provider、是否被 disable」，不做假开关。
 
-### 从 `@wenaixi/dsh-ponytail` 迁移
+### 品牌叙事统一
 
-见 [docs/migration-from-wenaixi.md](docs/migration-from-wenaixi.md)。
+README 与包元数据按原创插件口径重写，删除历史来源叙事，许可证归属不变。历史记录归档于 `docs/history/`。

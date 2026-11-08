@@ -1,3 +1,5 @@
+> 本文件为内部历史记录，非产品文档。仅用于追溯早期决策，不面向使用者，不随发布对外提供。
+
 # 从 `@wenaixi/dsh-ponytail` 迁移到 `dsh-ponytail-58fly`
 
 这份文档写给已经在用 `@wenaixi/dsh-ponytail`（截至写作时最新 **5.6.2**）的人：

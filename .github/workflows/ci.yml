@@ -12,7 +12,7 @@
 #               装完再卸是否什么都不剩（$DSH_HOME 装前/装后/卸载后三张快照做差集）。
 #   pack     —— 产物纯度与清单一致性：tarball 里不许出现 src/、test/、.d.ts.map、tsbuildinfo、
 #               不许有 new Function/eval( 这类动态代码执行；cordis.patch.yml 与 package.json/源码一致；
-#               CHANGELOG 顶部版本行与 tarball 版本一致、迁移说明存在。
+#               CHANGELOG 顶部版本行与 tarball 版本一致。
 #
 # 为什么 install 必须独立成 job 而不能塞进 quality 末尾：
 # 它要跑 pnpm install 到临时目录、要打 tarball，任何一步失败都该让"包不可安装"这个
@@ -350,7 +350,8 @@ jobs:
       - name: 发布说明与实际 tarball 一致
         run: |
           # 卡口③（清单）的文档面：CHANGELOG 顶部版本 == package.json 版本，
-          # 迁移文档必须存在（它不进 tarball，是仓内文档，但发出前必须有）。
+          # 且发布清单必须存在（它不进 tarball，是仓内文档，但发出前必须有）。
+          # 历史材料（docs/history/）不参与这道门：那是内部记录，不是产品文档。
           node - <<'NODE'
           const { readFileSync, existsSync } = require('node:fs');
           const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
@@ -360,9 +361,9 @@ jobs:
             console.error('CHANGELOG 顶部版本行与 package.json 不符：' + first + ' vs ' + pkg.version);
             process.exit(1);
           }
-          if (!existsSync('docs/migration-from-wenaixi.md')) {
-            console.error('缺少 docs/migration-from-wenaixi.md');
+          if (!existsSync('docs/发布清单.md')) {
+            console.error('缺少 docs/发布清单.md：发版步骤是发布门的一部分，不能只活在脑子里。');
             process.exit(1);
           }
-          console.log('CHANGELOG 版本 ' + pkg.version + ' 与迁移文档齐备 ✓');
+          console.log('CHANGELOG 版本 ' + pkg.version + ' 与发布清单齐备 ✓');
           NODE
