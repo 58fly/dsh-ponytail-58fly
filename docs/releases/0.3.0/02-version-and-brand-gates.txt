@@ -1,0 +1,29 @@
+=== 0.3.0 版本落地前的 grep 自证（2026-11-08）===
+
+--- package.json version / engines.dsh ---
+version = 0.3.0
+engines.dsh = >=0.2.0-rc.1 <0.3.0-0
+files = ["lib/**/*.js","lib/types/**/*.d.ts","skills/","cordis.patch.yml","README.md","LICENSE"]
+description = A lazy-mode plugin for DeepSeek Harness: mode-graded decision guidance, fence-aware prompt filtering and a two-language skill catalog.
+
+--- 旧项目名残留（README / CHANGELOG / package.json）---
+README.md:0
+CHANGELOG.md:0
+package.json:0
+
+--- README 行数与双语骨架 ---
+     139 README.md
+     139 docs/README.en.md
+     278 total
+README 结构校验通过（中英双语，骨架一致，上限 180 行）
+
+--- 品牌叙事字样 ---
+README.md:1
+docs/README.en.md:1
+
+--- 工作区状态 ---
+ M ".scratch/readme-0-3-0/issues/05-\351\205\215\345\233\276\345\237\272\345\273\272-\345\273\272-assets-\344\270\216\345\215\240\344\275\215-files-\347\231\275\345\220\215\345\215\225\345\256\210\345\215\253\346\211\251\345\210\260-assets.md"
+ M CHANGELOG.md
+ M "docs/\345\217\221\345\270\203\346\270\205\345\215\225.md"
+ M package.json
+?? docs/releases/0.3.0/

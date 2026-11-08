@@ -10,7 +10,7 @@
 
 **Blocked by:** #02
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] `assets/` 目录存在且有说明文件或 `.gitkeep`。
 - [ ] README「效果」节里没有可渲染的图片标签、没有坏链；截图片段在 HTML 注释内。
@@ -61,5 +61,22 @@
 
 ## 验收
 
+## Comments
+
+### local — 2026-11-08T04:05:22.434Z
+已实施并验证（按用户裁决：本版只做占位 + files 守卫，截图后期版本提供）。
+
+① 新建 assets/README.md，说明该目录的存在理由与使用规则：PNG 截图放这里只为 GitHub 页面渲染，不进 npm 发布物；命名全小写连字符；README 引用写法 `<img src="assets/xxx.png" width="720" alt="…">`（Markdown 图片语法无法限宽）；是否有图由 package.json#files 的反向断言守着。不放任何 `![占位]` 或坏链。
+
+② scripts/verify.mjs 的 files 白名单断言（原 596-602 行）从「不得含 src/ docs/ test/」扩到再加 assets/，提示语改为『package.json#files 不应包含 src/ docs/ test/ assets/：它们只是仓库内容，不该进 tarball。（README 的图片走 GitHub raw URL 渲染，不需要打进包里。）』。
+
+③ .github/workflows/ci.yml:294 的 BAD_OTHER 正则从 `^package/(src|test|scripts|docs|\.scratch|\.github)/` 扩成 `^package/(src|test|scripts|docs|assets|\.scratch|\.github)/`，让 pack job 在真的把 assets 打进 tarball 时也能抓到，并加注释说明理由。
+
+④ package.json#files 保持不变（仍不含 assets/），与规格 Q10 一致。
+
+验证：node scripts/verify.mjs 通过（26 源文件 / 97 产物 / 1 提醒），node --test 255 条全绿。commit 330a75a。
+
 
 ## 进度
+
+- 进度：100%（2026-11-08T12:05:22+08:00）：assets/ 占位与 files 守卫扩展落地，commit 330a75a
