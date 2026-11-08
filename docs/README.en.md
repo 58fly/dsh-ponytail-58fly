@@ -34,6 +34,12 @@ pnpm run build && npm pack
 dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.0.tgz
 ```
 
+Desktop app (Electron-owned profiles; `dsh plugin` refuses to write them):
+
+```bash
+cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.0.tgz
+```
+
 <h2 align="center"><sub>CORE</sub><br>What it does</h2>
 
 It plants a decision ladder in the system prompt, so the model answers six questions before writing any code:

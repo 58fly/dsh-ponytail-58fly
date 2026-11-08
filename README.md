@@ -34,6 +34,12 @@ pnpm run build && npm pack
 dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.0.tgz
 ```
 
+桌面版（Electron 独占的 profile，`dsh plugin` 会拒绝写入）：
+
+```bash
+cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.0.tgz
+```
+
 <h2 align="center"><sub>CORE</sub><br>它做了什么</h2>
 
 在系统提示里挂一段决策阶梯，让模型动手写代码前先过六道问：
