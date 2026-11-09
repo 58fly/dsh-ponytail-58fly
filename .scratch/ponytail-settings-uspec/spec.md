@@ -1,6 +1,6 @@
 <!-- DSH-FORMAT: md-v1 -->
 <!-- DSH-TITLE: Ponytail 设置页 UI 重构：三卡片、五态图例、指标表格与悬停帮助 -->
-<!-- DSH-STATUS: ready-for-agent -->
+<!-- DSH-STATUS: closed -->
 <!-- DSH-ASSIGNEES: lead -->
 <!-- DSH-LABELS: ready-for-agent -->
 <!-- DSH-IDEMPOTENCY-KEY: deck-998a62f7-5980662 -->
@@ -147,6 +147,88 @@ Ponytail 的设置页面板现在是一块**没有视觉结构的调试信息墙
 ## 收口记录
 
 - 2026-11-09：实现全绿并合入 `main`，最终提交 `59e3f12`（已推送 `origin/main`）。七道门 typecheck / build / verify / check:skills / check:readme / check:matrix / test(271) 在该提交上全绿。
+
+## Comments
+
+### local — 2026-11-09T15:11:14.631Z
+## 收口核对：规格 00「Ponytail 设置页 UI 重构」
+
+复核口径：规格正文自身没有验收标准段落，按任务约定以四张实施票（01–04）的验收判据之和为准，逐条对照并指认到代码行。下文码位指向最终提交 `d3ae458`（**实现面**自 `59e3f12` 起未再改动，`59e3f12` 与 `d3ae458` 对 `src/`、`test/`、`tsconfig.json` 是同一棵树）。
+
+## ① 规格承诺真的实现了
+
+**交付证明**：分支 `main`，提交 `d3ae458`，已推送 `origin/main`（`git ls-remote origin main` = `d3ae4588b66c474501be21fb9aed4f9ff9e3aaff`），工作树干净。本仓交付惯例是直接推 main（`docs/发布清单.md` 的发版流程 `git push origin main`），未走 PR。集成分支 `feat/settings-ui-cards` 已完全合并（`git log main..feat/settings-ui-cards` 为空）并删除；`git worktree list` 只有主工作区。改动落在 14 个文件、+798/−182。
+
+**检查命令与结果（全部在 `d3ae458` 上实跑，非记忆）**
+
+```text
+pnpm run typecheck     → 退出 0
+pnpm run build         → lib/client.js 50426 bytes（重构前 39304 bytes，+28%）
+pnpm run verify        → verify 通过（32 个源文件，117 个产物文件，1 条提醒）
+pnpm run check:skills  → 技能校验通过（6 个技能）
+pnpm run check:readme  → README 结构校验通过
+pnpm run check:matrix  → compat 矩阵覆盖 engines.dsh 区间内全部 15 个版本
+pnpm test              → tests 271 / pass 271 / fail 0
+node --test test/client-diagnosis.test.mjs → tests 14 / pass 14 / fail 0
+```
+
+安全网零改动（固定点 `2994efe` → `d3ae458` 的 diff 为空）：`test/client-diagnosis.test.mjs`、`src/l0/diagnosis.ts`、`src/client/charts.tsx`、`src/client/index.ts`、`src/stats/`、`scripts/verify.mjs`。
+
+**逐票核对**
+
+- **票 01（`cb6d44b`）** — `TITLE = 'Ponytail'`（panel.tsx:140，无 58fly）、`TAGLINE`（:143）；`CARD_STYLE`（:204）与 `Card`（:227）是唯一卡片壳，三张卡在 :380 / :436 / :747 复用；`useCompactWidth`（:170）在 :535 根节点挂 ref，`COMPACT_MAX_WIDTH = 480`（:149）按 `getBoundingClientRect().width` 判定并用 `ResizeObserver` 监听，取不到时降级宽栏；`test/client-wiring.test.mjs` 桩补齐 `useEffect` / `useRef` / `HoverCard` / `PathLabel`，断言仍只覆盖注册面与写回调。
+- **票 02（`01320c7`）** — `SegmentedControl`（:381）保留 `id="ponytail-58fly-mode"` 与写入路径；四段 `title` 来自 `MODE_TITLE`（:109），完整对照走 `HoverCard`（:353）+ `<button aria-label="四档完整说明">`（:357，文本节点画的 `?`，可 Tab 聚焦）；状态行在 :396–:410（生效档位 / revision / `OVERRIDE_TEXT[overriddenBy]`，缺省 `无覆盖`，不报 user 存在性）；清除按钮在卡头 `action`（:339），`disabled={busy || !snapshot.writable || snapshot.user === undefined}`。
+- **票 03（`7438284`）** — `DIAGNOSIS_RULE`（:273）+ 五个 `Tag` 同一 flex 行（:449–:452，`LEGEND_STATES` 显式数组 :276）；表格 :457 宽栏四列「状态｜来源｜取值｜备注」，紧凑三列并把 `note` 挪到 `colSpan={3}` 行下方；来源列 `PathLabel`（:479），`td` 保持 `table-cell`、内层 div 竖排、无 `word-break`；取值列 `VALUE_CELL` 等宽，`row.value ?? '未设置'`；覆盖句 :495–:499 逐字保留。
+- **票 04（`ba64c3f`）** — `<Card title="效率统计">`（:747）；表格 :776 三列五行，`EFFICIENCY_ROWS`（:669）五条，数值列等宽右对齐 `tabular-nums`；`title={compact ? row.hint : undefined}`（:786）保证折叠后说明不丢；注入率环形 + `注入次数 / 受管轮次` 比值在 :807–:815，按档位分布 `BarList` 在 :832（两者位于表格下方，非 tr/td，原因记在新设计文档 §5）；基线提示块 `CALLOUT_STYLE`（:678，二级底 + 左侧 2px `--dsw-alias-state-warn-primary` + 12px 内边距），首行逐字「这是上游基准，不是本机测量」（:840）；清零在卡底左对齐（:862），内联二次确认（:866–:884，「清零本机统计？」原句未改）；`STATS_TEXT`（:572）三态文案逐字未动。
+
+**逐条用户故事（26 条，以票判据之和为准）**
+
+| # | 实现或测试证据 |
+|---|---|
+| 1 | `DIAGNOSIS_RULE` 位于诊断卡标题行下方第一行（panel.tsx:273, :449）；哨兵 14/14 通过 |
+| 2 | 五个图例 `Tag` 与正文共用 `STATE_TEXT` 映射（panel.tsx:132, :450） |
+| 3 | 来源列 `PathLabel`（panel.tsx:479），无 `word-break`，td 保持 table-cell |
+| 4 | `PathLabel` 自带单行、悬停全文、复制 |
+| 5 | 状态行 `OVERRIDE_TEXT`（panel.tsx:125, :404），env → `被环境变量覆盖` |
+| 6 | 清除按钮 `disabled` 含 `snapshot.user === undefined`（panel.tsx:341） |
+| 7 | 四段 `MODE_TITLE` 悬停短说明（panel.tsx:109, :386） |
+| 8 | `HoverCard` 四档完整对照（panel.tsx:353–:378） |
+| 9 | 原生 `<button aria-label="四档完整说明">` 可聚焦（panel.tsx:357） |
+| 10 | `onChange` → `writeMode` → 回执 Tag「已写入 / 未写入」（panel.tsx:387–:390, :412） |
+| 11 | 清零内联二次确认（panel.tsx:866–:884），无 Modal |
+| 12 | 五行 `EFFICIENCY_ROWS` 各带说明（panel.tsx:669–:675） |
+| 13 | 比值 `group(injections) + ' / ' + group(managedTurns)`（panel.tsx:814） |
+| 14 | `BarList` 四档分布保留（panel.tsx:829–:834） |
+| 15 | 基线提示块 `CALLOUT_STYLE`（panel.tsx:678, :838–:840） |
+| 16 | 刷新在 `Card.action`（panel.tsx:740），`status === 'loading'` 时禁用 |
+| 17 | 三张 `Card`（panel.tsx:380 / :436 / :747） |
+| 18 | `diagnosis.rows` 顺序恒定 env → patch → fallback（`src/l0/diagnosis.ts` 零改动，哨兵覆盖） |
+| 19 | `invalid` → tone `danger` +「值无效，已忽略」（哨兵断言） |
+| 20 | 颜色全走 `--dsw-alias-*` / `--dsw-font-mono` / `--dsw-radius-*`；verify 第 10b 组 hex 扫描零命中 |
+| 21 | 全仓「你省了 / 实际节省」只在白名单与「禁止这样写」语境；verify 零命中 |
+| 22 | `unknown` → tone `info`，且 `LEGEND_STATES` 含全五态 |
+| 23 | `COMPACT_MAX_WIDTH = 480` + 根节点测宽（panel.tsx:149, :170） |
+| 24 | 卡片标题逐字 `效率统计`（panel.tsx:747） |
+| 25 | `src/commands/gain.ts:159` 与 `test/gain.test.mjs:42` 均为 `面板里有图形版：设置 → Ponytail → 效率统计。`，测试逐字断言 |
+| 26 | `src/l0/diagnosis.ts`、`src/client/charts.tsx`、`src/client/index.ts`、`src/stats/` 本次零改动（diff 为空） |
+
+## ② 改动已进入长期分支
+
+`main@d3ae458`，`origin/main` 指向同一 SHA。五个实现提交 `cb6d44b` / `01320c7` / `7438284` / `ba64c3f` / `e50b1e0` 加三个收口提交 `91a6d0f` / `59e3f12` / `d3ae458` 全部在 main 上，快进合并、无冲突、无 squash 丢失。
+
+## ③ 检查可复现全绿
+
+见上表，全部在 `d3ae458` 工作树上跑出，`git status --porcelain` 为空。构建产物 `lib/client.js` 也随提交入库，与 `src/` 同版本。
+
+## ④ 遗留已处置
+
+- 「`/ponytail` 命令补报覆盖关系」→ 票 **05**：按规格 Out of Scope 原意「另立票」关闭，三条待查与两条分支验收原样留在票面。
+- 「打开配置文件」按钮 → 票 **06**：同上关闭；本次替代形态是 `PathLabel`（可复制路径），已写进新设计文档与规格 Implementation Decisions。
+- 旧设计文档 §10 末行与实际命令输出不一致 → 本次直接改齐为 `效率统计`（`59e3f12`）。
+- `scripts/verify.mjs:909` 失败提示仍指向旧文档 §11 → **未改**：该文件属本次保护面（安全网零改动），提示文字不影响判定，记为已知瑕疵。
+- 未提交改动：无。临时分支已删，无残留工作树。
+
+**一处与票面措辞的偏离（已知，由我判定保留）**：票 02 判据写「被内置兜底覆盖」，但 `Diagnosis.overriddenBy` 类型只有 `'env' | 'patch' | null`——兜底生效时它就是生效层本身，该状态在数据上不存在。实现按事实只出三种文案（另两种 + `无覆盖`），未改 `diagnosis.ts`。
 
 ## 进度
 
