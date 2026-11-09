@@ -156,7 +156,7 @@ function baselineBlock(managedTurns: number, offTurns: number): string[] {
   rows.push('  ' + BASELINE_SOURCE);
   rows.push('  ' + BASELINE_CAVEAT);
   rows.push('');
-  rows.push('面板里有图形版：设置 → Ponytail → 效率。');
+  rows.push('面板里有图形版：设置 → Ponytail → 效率统计。');
   return rows;
 }
 

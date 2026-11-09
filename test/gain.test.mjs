@@ -39,7 +39,7 @@ test('有数据时输出主数字、注入率、四档分布与基准三行', ()
   assert.match(text, /输出 token/);
   assert.match(text, /这是上游基准，不是本机测量。/);
   assert.match(text, /benchmarks\/results\/2026-10-07-agentic\.md/);
-  assert.match(text, /面板里有图形版：设置 → Ponytail → 效率。/);
+  assert.match(text, /面板里有图形版：设置 → Ponytail → 效率统计。/);
 });
 
 test('预估区间跟着非 off 轮次走：128 轮里 12 轮 off → 基数 116', () => {

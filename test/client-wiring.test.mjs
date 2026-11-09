@@ -38,9 +38,6 @@ const STUB_MODULES = {
     useEffect: () => {},
     // 必须能当对象用：面板读 ref.current 决定要不要挂观测器。
     useRef: (initial) => ({ current: initial }),
-    // 模块级建一次 context，桩里不需要 provider/consumer 联动。
-    createContext: (defaultValue) => ({ _currentValue: defaultValue }),
-    useContext: (context) => context?._currentValue,
   },
   'react/jsx-runtime': {
     Fragment: Symbol.for('react.fragment'),

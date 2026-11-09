@@ -225,7 +225,7 @@ const CARD_HEAD_ACTION: CSSProperties = { display: 'flex', alignItems: 'center',
  * @returns 卡片节点。
  */
 function Card(props: {
-  readonly title: string;
+  readonly title: ReactNode;
   readonly action?: ReactNode;
   readonly compact?: boolean;
   readonly children: ReactNode;
@@ -309,8 +309,8 @@ const UNSET_VALUE = '未设置';
 /**
  * 档位卡（票 02）：分段单选 + 标题旁 `?` 完整对照 + 单行状态行 + 卡头右侧清除按钮。
  *
- * 分段控件保留 id 与写语义；`?` 自己拉一张卡头行——`Card` 的标题是纯字符串，
- * 而 `?` 必须跟标题同一行且不能占掉卡头唯一的动作位（那是清除按钮的）。
+ * 分段控件保留 id 与写语义；`?` 跟标题同一行，挂在 `Card.title` 里（`title` 收 `ReactNode`），
+ * 不占卡头唯一的动作位——那个位置留给清除按钮。
  * @param props - 快照、诊断结论、紧凑模式、忙碌态与两个写回调。
  * @returns 档位卡节点。
  */
@@ -347,42 +347,37 @@ function ModeCard(props: {
     </Button>
   );
 
-  return (
-    <section style={CARD_STYLE}>
-      <header
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}
-      >
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: 14, lineHeight: '22px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }}>
-            档位
-          </h3>
-          <HoverCard
-            inline
-            openDelayMs={200}
-            anchor={
-              <button type="button" aria-label="四档完整说明" style={HELP_TRIGGER}>
-                ?
-              </button>
-            }
-            content={
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <strong style={{ fontSize: 12, lineHeight: '18px' }}>四档对照</strong>
-                {RUNTIME_MODES.map((mode) => (
-                  <span
-                    key={mode}
-                    style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, lineHeight: '17px' }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{MODE_TEXT[mode]}</span>
-                    <span style={{ color: 'var(--dsw-alias-label-secondary)' }}>{MODE_HELP[mode]}</span>
-                  </span>
-                ))}
+  const title = (
+    <>
+      档位
+      <HoverCard
+        inline
+        openDelayMs={200}
+        anchor={
+          <button type="button" aria-label="四档完整说明" style={HELP_TRIGGER}>
+            ?
+          </button>
+        }
+        content={
+          <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <strong style={{ fontSize: 12, lineHeight: '18px' }}>四档对照</strong>
+            {RUNTIME_MODES.map((mode) => (
+              <span
+                key={mode}
+                style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, lineHeight: '17px' }}
+              >
+                <span style={{ fontWeight: 600 }}>{MODE_TEXT[mode]}</span>
+                <span style={{ color: 'var(--dsw-alias-label-secondary)' }}>{MODE_HELP[mode]}</span>
               </span>
-            }
-          />
-        </span>
-        {reset}
-      </header>
+            ))}
+          </span>
+        }
+      />
+    </>
+  );
 
+  return (
+    <Card title={title} action={reset} compact={compact}>
       <SegmentedControl
         id="ponytail-58fly-mode"
         label="Ponytail 档位"
@@ -422,7 +417,7 @@ function ModeCard(props: {
           <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{feedback.message}</span>
         </p>
       )}
-    </section>
+    </Card>
   );
 }
 
@@ -477,9 +472,12 @@ function DiagnosisCard(props: { readonly diagnosis: Diagnosis; readonly compact:
                   <td style={CELL_STYLE}>
                     <Tag tone={state.tone}>{state.text}</Tag>
                   </td>
-                  <td style={{ ...CELL_STYLE, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ color: 'var(--dsw-alias-label-primary)' }}>{row.label}</span>
-                    <PathLabel path={row.location} />
+                  <td style={CELL_STYLE}>
+                    {/* td 必须留在 table-cell：改成 flex 会脱离列宽计算，fixed 布局就失效了。 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                      <span style={{ color: 'var(--dsw-alias-label-primary)' }}>{row.label}</span>
+                      <PathLabel path={row.location} />
+                    </div>
                   </td>
                   <td style={VALUE_CELL}>{row.value ?? UNSET_VALUE}</td>
                   {compact ? null : <td style={CELL_STYLE}>{row.note ?? ''}</td>}
@@ -694,9 +692,9 @@ const CALLOUT_STYLE: CSSProperties = {
  * 三种状态各有各的说法：空态是正常的（还没开始计数），读不到是异常的（通道没了），
  * 两者都用一句完整的话，不用感叹号也不用警告三角（§7）。
  *
- * 主体是「指标｜数值｜说明/图形」表格：五行指标 + 注入率行 + 按档位分布行。
- * `compact` 只折叠说明列（文字转进 `title` 悬停可见）与极窄时把两张图各占一行；
- * 图形列在任何宽度下都渲染，图表的对外契约一行没改。
+ * 主体是「指标｜数值｜说明/图形」表格，只有五行指标；注入率与按档位分布的图
+ * 是表格下方的「标签 + 图形」块（Ring 是 SVG、BarList 是 div，塞不进 tr/td）。
+ * `compact` 只折叠说明列——说明文字改挂到整行的 `title` 上，悬停任意位置都能看到。
  * @param props - 读接口与是否紧凑。
  * @returns 区块节点。
  */
@@ -785,13 +783,9 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
             </thead>
             <tbody>
               {EFFICIENCY_ROWS.map((row) => (
-                <tr key={row.key}>
-                  <td style={{ ...CELL_STYLE, borderTop: compact ? 'none' : undefined }}>
-                    {row.label}
-                  </td>
-                  <td style={{ ...EFF_VALUE_CELL, borderTop: compact ? 'none' : undefined }}>
-                    {values[row.key]}
-                  </td>
+                <tr key={row.key} title={compact ? row.hint : undefined}>
+                  <td style={CELL_STYLE}>{row.label}</td>
+                  <td style={EFF_VALUE_CELL}>{values[row.key]}</td>
                   {compact ? null : <td style={CELL_STYLE}>{row.hint}</td>}
                 </tr>
               ))}
