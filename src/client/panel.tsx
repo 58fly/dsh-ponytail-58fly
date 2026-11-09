@@ -603,26 +603,16 @@ function clockOf(epochMs: number): string {
   return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
 }
 
-/** 主行里的一组「数字 + 单位 + 说明」。 */
-function Metric(props: { readonly value: string; readonly unit: string; readonly hint: string }): ReactNode {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
-      <span
-        style={{
-          fontSize: 20,
-          lineHeight: '28px',
-          fontWeight: 600,
-          color: 'var(--dsw-alias-label-primary)',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {props.value}
-      </span>
-      <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{props.unit}</span>
-      <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>{props.hint}</span>
-    </span>
-  );
-}
+/** 效率表格的数值列：等宽、右对齐，数字才能按位对上。 */
+const EFF_VALUE_CELL: CSSProperties = {
+  ...CELL_STYLE,
+  width: '7em',
+  fontFamily: 'var(--dsw-font-mono)',
+  textAlign: 'right',
+  whiteSpace: 'nowrap',
+  color: 'var(--dsw-alias-label-primary)',
+  fontVariantNumeric: 'tabular-nums',
+};
 
 /**
  * 基准推算三行 + 出处 + 限定语。
@@ -677,12 +667,36 @@ function BaselineRows(): ReactNode {
   );
 }
 
+/** 效率卡五个指标的说明文案：取自旧 `Metric` 的 hint，一字未改口径。 */
+const EFFICIENCY_ROWS: readonly { readonly key: string; readonly label: string; readonly hint: string }[] = [
+  { key: 'turns', label: '受管轮次', hint: '每个经过 Ponytail pre-step 的轮次都算一次' },
+  { key: 'injections', label: '注入次数', hint: '每轮拼进上下文的注入，次数不是字节' },
+  { key: 'bytes', label: '注入字节', hint: '注入文本的累计大小，与注入次数不是一回事' },
+  { key: 'switches', label: '切档次数', hint: '本机运行期里档位被切换的次数' },
+  { key: 'calls', label: '命令调用次数', hint: '本机运行期里 slash 命令被调用的次数' },
+];
+
+/** 基线提示块：二级底 + 左侧 2px 警告竖条 + 12px 内边距。 */
+const CALLOUT_STYLE: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+  padding: 12,
+  minWidth: 0,
+  background: 'var(--dsw-alias-bg-layer-2)',
+  borderLeft: '2px solid var(--dsw-alias-state-warn-primary)',
+  borderRadius: 'var(--dsw-radius-sm)',
+};
+
 /**
- * 「效率统计」区块（票 06；卡片壳与紧凑宽度见票 01）。
+ * 「效率统计」区块（票 04；卡片壳与紧凑宽度见票 01）。
  *
  * 三种状态各有各的说法：空态是正常的（还没开始计数），读不到是异常的（通道没了），
  * 两者都用一句完整的话，不用感叹号也不用警告三角（§7）。
- * 主体本次只套壳：簇内排布没动，`compact` 只作用于卡头。
+ *
+ * 主体是「指标｜数值｜说明/图形」表格：五行指标 + 注入率行 + 按档位分布行。
+ * `compact` 只折叠说明列（文字转进 `title` 悬停可见）与极窄时把两张图各占一行；
+ * 图形列在任何宽度下都渲染，图表的对外契约一行没改。
  * @param props - 读接口与是否紧凑。
  * @returns 区块节点。
  */
@@ -706,6 +720,16 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
 
   const snapshot = props.port.snapshot;
   const empty = snapshot === null || snapshot.managedTurns === 0;
+  const compact = props.compact;
+
+  /* 指标行的数值：与旧 Metric 的数值同源，只换了排布。 */
+  const values: Readonly<Record<string, string>> = {
+    turns: group(snapshot?.managedTurns ?? 0),
+    injections: group(snapshot?.injections ?? 0),
+    bytes: formatBytes(snapshot?.injectedBytes ?? 0),
+    switches: group(snapshot?.modeSwitches ?? 0),
+    calls: group(snapshot?.commandCalls ?? 0),
+  };
 
   /* 卡头右端：数据截至早于刷新按钮（顺序由票 03 定），紧凑时按同一组换行。 */
   const action = (
@@ -722,7 +746,7 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
   );
 
   return (
-    <Card title="效率统计" action={action} compact={props.compact}>
+    <Card title="效率统计" action={action} compact={compact}>
       {props.port.status === 'loading' && snapshot === null ? (
         <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
           {STATS_TEXT.loading}
@@ -751,46 +775,85 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
 
       {snapshot === null ? null : (
         <>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 16 }}>
-            {empty ? (
-              <span style={{ fontSize: 14, lineHeight: '22px', fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>
-                {STATS_TEXT.emptyTitle}
-              </span>
-            ) : (
-              <>
-                <Metric value={group(snapshot.managedTurns)} unit="轮" hint="受管" />
-                <Metric value={group(snapshot.injections)} unit="次" hint="注入" />
-                <Metric value={group(snapshot.modeSwitches)} unit="次" hint="切档" />
-                <Metric value={group(snapshot.commandCalls)} unit="次" hint="命令调用" />
-                <Metric value={formatBytes(snapshot.injectedBytes)} unit="" hint="注入字节" />
-              </>
-            )}
-          </div>
+          <table style={TABLE_STYLE}>
+            <thead>
+              <tr>
+                <th style={{ ...CELL_STYLE, borderTop: 'none' }}>指标</th>
+                <th style={{ ...EFF_VALUE_CELL, borderTop: 'none' }}>数值</th>
+                <th style={{ ...CELL_STYLE, borderTop: 'none' }}>说明/图形</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EFFICIENCY_ROWS.map((row) => (
+                <tr key={row.key}>
+                  <td style={{ ...CELL_STYLE, borderTop: compact ? 'none' : undefined }}>
+                    {row.label}
+                  </td>
+                  <td style={{ ...EFF_VALUE_CELL, borderTop: compact ? 'none' : undefined }}>
+                    {values[row.key]}
+                  </td>
+                  {compact ? null : <td style={CELL_STYLE}>{row.hint}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
           {empty ? (
-            <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-              {STATS_TEXT.emptyBody}
-            </p>
+            <>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: '22px', fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>
+                {STATS_TEXT.emptyTitle}
+              </p>
+              <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+                {STATS_TEXT.emptyBody}
+              </p>
+            </>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                <Ring
-                  value={snapshot.injections}
-                  total={snapshot.managedTurns}
-                  label="注入率"
-                />
-                <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-                  {'注入率 · ' + group(snapshot.injections) + ' / ' + group(snapshot.managedTurns)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <Ring value={snapshot.injections} total={snapshot.managedTurns} label="注入率" />
+                <span
+                  title={compact ? '注入次数 / 受管轮次' : undefined}
+                  style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
+                >
+                  <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>注入率</span>
+                  <span style={{ fontFamily: 'var(--dsw-font-mono)', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                    {group(snapshot.injections) + ' / ' + group(snapshot.managedTurns)}
+                  </span>
+                  {compact ? null : (
+                    <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
+                      注入次数 / 受管轮次
+                    </span>
+                  )}
                 </span>
               </div>
-              <BarList
-                label="按档位分布（受管轮次）"
-                rows={RUNTIME_MODES.map((mode) => ({ key: mode, label: BAR_LABEL[mode], value: snapshot.turnsByMode[mode] }))}
-              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
+                <span
+                  title={compact ? '按档位分布（受管轮次）' : undefined}
+                  style={{ flex: '0 0 72px', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}
+                >
+                  按档位分布
+                </span>
+                <BarList
+                  label="按档位分布（受管轮次）"
+                  rows={RUNTIME_MODES.map((mode) => ({ key: mode, label: BAR_LABEL[mode], value: snapshot.turnsByMode[mode] }))}
+                />
+              </div>
             </div>
           )}
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={CALLOUT_STYLE}>
+            <strong style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-primary)' }}>
+              这是上游基准，不是本机测量
+            </strong>
+            <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
+              {STATS_TEXT.baselineNote}
+              {' · '}
+              <a href={BASELINE.outputTokens.source} target="_blank" rel="noreferrer" style={{ color: 'var(--dsw-alias-link)' }}>
+                方法论
+              </a>
+              {' · '}
+              {BASELINE_CAVEAT}
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <h4 style={{ margin: 0, fontSize: 12, lineHeight: '18px', fontWeight: 500, color: 'var(--dsw-alias-label-secondary)' }}>
                 {STATS_TEXT.baselineTitle}
@@ -798,25 +861,11 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
               <Tag tone="quiet">基准推算</Tag>
             </div>
             <BaselineRows />
-            <p style={{ margin: 0, fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
-              {STATS_TEXT.baselineNote}
-              {' · '}
-              <a
-                href={BASELINE.outputTokens.source}
-                target="_blank"
-                rel="noreferrer"
-                style={{ color: 'var(--dsw-alias-link)' }}
-              >
-                方法论
-              </a>
-              {' · '}
-              {BASELINE_CAVEAT}
-            </p>
           </div>
         </>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
         <Button variant="outline" size="sm" disabled={resetting || confirming} onClick={() => setConfirming(true)}>
           {resetting ? STATS_TEXT.resetting : '清零统计'}
         </Button>
