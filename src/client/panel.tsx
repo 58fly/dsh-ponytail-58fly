@@ -26,9 +26,9 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { Button, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, HoverCard, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
-import { diagnose, type DiagnosisState } from '../l0/diagnosis.js';
+import { diagnose, type Diagnosis, type DiagnosisLevel, type DiagnosisState } from '../l0/diagnosis.js';
 import { BASELINE, BASELINE_CAVEAT, type BaselineRow } from '../stats/baseline.js';
 import type { StatsView } from '../stats/types.js';
 import { BarList, Ring } from './charts.js';
@@ -99,6 +99,31 @@ const MODE_TEXT: Readonly<Record<RuntimeMode, string>> = {
   lite: 'lite · 最轻',
   full: 'full · 默认',
   ultra: 'ultra · 最狠',
+};
+
+/**
+ * 四段各自的悬停短说明：一句讲性格，不复述完整对照（完整口径见 `/ponytail-help`）。
+ * 四档完整说明见 {@link MODE_HELP}。
+ */
+const MODE_TITLE: Readonly<Record<RuntimeMode, string>> = {
+  off: '待命：不注入，需要时手写 /ponytail 打开',
+  lite: '只说更小的那个选项，不动手',
+  full: '默认：最小完整改动 + 一条检查 + 风险说明',
+  ultra: '还要质疑需求，动手前先反驳',
+};
+
+/** `?` 悬浮卡里的四档完整对照：一行一档，文案取自 `/ponytail-help`。 */
+const MODE_HELP: Readonly<Record<RuntimeMode, string>> = {
+  off: '不在会话开始时自动生效，需要时手写 /ponytail 打开。',
+  lite: '按要求做，用一行说明更小的那个选项。',
+  full: '最小的完整改动、逻辑需要时的一条检查、以及说明跳过了什么与风险的回复。默认。',
+  ultra: '还要质疑需求，动手前先反驳。',
+};
+
+/** 状态行里的覆盖关系：面板只认 env / patch，其余一律按无覆盖写。 */
+const OVERRIDE_TEXT: Readonly<Partial<Record<DiagnosisLevel, string>>> = {
+  env: '被环境变量覆盖',
+  patch: '被 Profile 补丁覆盖',
 };
 
 /** 诊断状态对应的 Tag 语气与中文说明。 */
@@ -226,6 +251,143 @@ function Card(props: {
   );
 }
 
+/** 标题旁的 `?`：文本节点画的圆钮，宽度跟内容走（不进卡头动作位）。 */
+const HELP_TRIGGER: CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxSizing: 'border-box',
+  width: 18,
+  height: 18,
+  padding: 0,
+  fontSize: 11,
+  lineHeight: '16px',
+  cursor: 'help',
+};
+
+/** 状态行里的一项：等宽、可换行但不撑破卡片。 */
+const STATUS_FACT: CSSProperties = { fontFamily: 'var(--dsw-font-mono)', minWidth: 0, overflowWrap: 'anywhere' };
+
+/**
+ * 档位卡（票 02）：分段单选 + 标题旁 `?` 完整对照 + 单行状态行 + 卡头右侧清除按钮。
+ *
+ * 分段控件保留 id 与写语义；`?` 自己拉一张卡头行——`Card` 的标题是纯字符串，
+ * 而 `?` 必须跟标题同一行且不能占掉卡头唯一的动作位（那是清除按钮的）。
+ * @param props - 快照、诊断结论、紧凑模式、忙碌态与两个写回调。
+ * @returns 档位卡节点。
+ */
+function ModeCard(props: {
+  readonly snapshot: PanelSnapshot;
+  readonly diagnosis: Diagnosis;
+  readonly compact: boolean;
+  readonly busy: boolean;
+  readonly writeMode: (mode: RuntimeMode) => Promise<WriteOutcome>;
+  readonly resetMode: () => Promise<WriteOutcome>;
+}): ReactNode {
+  const { snapshot, diagnosis, compact, busy } = props;
+  const [feedback, setFeedback] = useState<WriteOutcome | null>(null);
+
+  /* 写回执的包装，行为与原 `run()` 逐字一致：失败也进 feedback，不抛。 */
+  const run = async (operation: () => Promise<WriteOutcome>): Promise<void> => {
+    try {
+      setFeedback(await operation());
+    } catch (error) {
+      setFeedback({ ok: false, message: '写操作抛错：' + String(error) });
+    }
+  };
+
+  const reset = (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={busy || !snapshot.writable || snapshot.user === undefined}
+      onClick={() => {
+        void run(props.resetMode);
+      }}
+    >
+      清除用户层覆盖
+    </Button>
+  );
+
+  return (
+    <section style={CARD_STYLE}>
+      <header
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}
+      >
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+          <h3 style={{ margin: 0, fontSize: 14, lineHeight: '22px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }}>
+            档位
+          </h3>
+          <HoverCard
+            inline
+            openDelayMs={200}
+            anchor={
+              <button type="button" aria-label="四档完整说明" style={HELP_TRIGGER}>
+                ?
+              </button>
+            }
+            content={
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <strong style={{ fontSize: 12, lineHeight: '18px' }}>四档对照</strong>
+                {RUNTIME_MODES.map((mode) => (
+                  <span
+                    key={mode}
+                    style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, lineHeight: '17px' }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{MODE_TEXT[mode]}</span>
+                    <span style={{ color: 'var(--dsw-alias-label-secondary)' }}>{MODE_HELP[mode]}</span>
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        </span>
+        {reset}
+      </header>
+
+      <SegmentedControl
+        id="ponytail-58fly-mode"
+        label="Ponytail 档位"
+        value={diagnosis.effective}
+        disabled={busy || !snapshot.writable}
+        options={RUNTIME_MODES.map((mode) => ({ value: mode, label: MODE_TEXT[mode], title: MODE_TITLE[mode] }))}
+        onChange={(next) => {
+          void run(() => props.writeMode(next));
+        }}
+      />
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 6,
+          alignItems: 'baseline',
+          flexWrap: compact ? 'wrap' : 'nowrap',
+          minWidth: 0,
+          fontSize: 12,
+          lineHeight: '18px',
+          color: 'var(--dsw-alias-label-secondary)',
+        }}
+      >
+        <span style={STATUS_FACT}>{diagnosis.effective}</span>
+        <span>·</span>
+        <span style={STATUS_FACT}>{snapshot.revision === undefined ? 'revision 未知' : 'revision ' + String(snapshot.revision)}</span>
+        <span>·</span>
+        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+          {OVERRIDE_TEXT[diagnosis.overriddenBy ?? 'fallback'] ?? '无覆盖'}
+        </span>
+        {snapshot.writable ? null : <span>· 配置只读</span>}
+      </div>
+
+      {feedback === null ? null : (
+        <p style={{ margin: 0, display: 'flex', gap: 8, alignItems: 'center', minWidth: 0, flexWrap: 'wrap' }}>
+          <Tag tone={feedback.ok ? 'success' : 'danger'}>{feedback.ok ? '已写入' : '未写入'}</Tag>
+          <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{feedback.message}</span>
+        </p>
+      )}
+    </section>
+  );
+}
+
 /**
  * 渲染设置页里的 Ponytail 面板。
  * @param props - 宿主注入的 hook 与两个写回调。
@@ -234,18 +396,15 @@ function Card(props: {
 export function PonytailPanel(props: PonytailPanelProps): ReactNode {
   const snapshot = props.useSnapshot(IDENTITY);
   const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<WriteOutcome | null>(null);
 
   const diagnosis = diagnose({ value: snapshot.value, base: snapshot.base, user: snapshot.user });
-  const effective = diagnosis.effective;
   const ready = snapshot.status === 'ready';
 
-  const run = async (operation: () => Promise<WriteOutcome>): Promise<void> => {
+  /* busy 只在这里收口：两个写回调都走这一层，卡片只负责显示回执。 */
+  const write = async (operation: () => Promise<WriteOutcome>): Promise<WriteOutcome> => {
     setBusy(true);
     try {
-      setFeedback(await operation());
-    } catch (error) {
-      setFeedback({ ok: false, message: '写操作抛错：' + String(error) });
+      return await operation();
     } finally {
       setBusy(false);
     }
@@ -274,45 +433,16 @@ export function PonytailPanel(props: PonytailPanelProps): ReactNode {
         </p>
       ) : null}
 
-      <Card title="档位" compact={compact}>
       {ready ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <SegmentedControl
-            id="ponytail-58fly-mode"
-            label="Ponytail 档位"
-            value={effective}
-            disabled={busy || !snapshot.writable}
-            options={RUNTIME_MODES.map((mode) => ({ value: mode, label: MODE_TEXT[mode] }))}
-            onChange={(next) => {
-              void run(() => props.writeMode(next));
-            }}
-          />
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy || !snapshot.writable || snapshot.user === undefined}
-              onClick={() => {
-                void run(() => props.resetMode());
-              }}
-            >
-              清除用户层覆盖
-            </Button>
-            <span>
-              当前生效：<code>{effective}</code>
-              {snapshot.revision === undefined ? '' : ' · revision ' + String(snapshot.revision)}
-              {snapshot.writable ? '' : ' · 配置只读'}
-            </span>
-          </div>
-          {feedback === null ? null : (
-            <p style={{ margin: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <Tag tone={feedback.ok ? 'success' : 'danger'}>{feedback.ok ? '已写入' : '未写入'}</Tag>
-              <span>{feedback.message}</span>
-            </p>
-          )}
-        </div>
+        <ModeCard
+          snapshot={snapshot}
+          diagnosis={diagnosis}
+          compact={compact}
+          busy={busy}
+          writeMode={(mode) => write(() => props.writeMode(mode))}
+          resetMode={() => write(props.resetMode)}
+        />
       ) : null}
-      </Card>
 
       <Card title="优先级诊断链" compact={compact}>
         <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
