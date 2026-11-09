@@ -32,7 +32,16 @@ const CLIENT_URL = pathToFileURL(require.resolve('../lib/client.js')).href;
  * 面板本身不被渲染（没有 DOM），所以桩只要能构造出组件引用即可。
  */
 const STUB_MODULES = {
-  react: { useState: (initial) => [initial, () => {}] },
+  react: {
+    useState: (initial) => [initial, () => {}],
+    // 面板只测宽（ResizeObserver 在桩里被特性检测挡住），effect 体不跑、也不清理。
+    useEffect: () => {},
+    // 必须能当对象用：面板读 ref.current 决定要不要挂观测器。
+    useRef: (initial) => ({ current: initial }),
+    // 模块级建一次 context，桩里不需要 provider/consumer 联动。
+    createContext: (defaultValue) => ({ _currentValue: defaultValue }),
+    useContext: (context) => context?._currentValue,
+  },
   'react/jsx-runtime': {
     Fragment: Symbol.for('react.fragment'),
     jsx: () => null,
