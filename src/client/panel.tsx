@@ -19,6 +19,7 @@
  * @module
  */
 import {
+  Fragment,
   useEffect,
   useRef,
   useState,
@@ -26,7 +27,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { Button, HoverCard, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, HoverCard, PathLabel, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
 import { diagnose, type Diagnosis, type DiagnosisLevel, type DiagnosisState } from '../l0/diagnosis.js';
 import { BASELINE, BASELINE_CAVEAT, type BaselineRow } from '../stats/baseline.js';
@@ -268,6 +269,43 @@ const HELP_TRIGGER: CSSProperties = {
 /** 状态行里的一项：等宽、可换行但不撑破卡片。 */
 const STATUS_FACT: CSSProperties = { fontFamily: 'var(--dsw-font-mono)', minWidth: 0, overflowWrap: 'anywhere' };
 
+/** 诊断卡的规则句，逐字取自票 03。 */
+const DIAGNOSIS_RULE = '取值顺序 环境变量 → Profile 补丁 → 内置兜底，先命中的赢';
+
+/** 图例的顺序：取值链的顺序，不是 `STATE_TEXT` 的声明顺序。 */
+const LEGEND_STATES: readonly DiagnosisState[] = ['hit', 'shadowed', 'invalid', 'absent', 'unknown'];
+
+/** 表格的公共骨架：`fixed` 布局 + 不给 `minWidth`，长路径才不会把卡撑出横向滚动条。 */
+const TABLE_STYLE: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' };
+
+/** 表头/单元格共用的排版：`minWidth: 0` 让固定布局真的压住内容。 */
+const CELL_STYLE: CSSProperties = {
+  padding: '4px 8px 4px 0',
+  textAlign: 'left',
+  verticalAlign: 'top',
+  fontSize: 12,
+  lineHeight: '18px',
+  minWidth: 0,
+  borderTop: '0.5px solid var(--dsw-alias-border-l3)',
+  color: 'var(--dsw-alias-label-secondary)',
+};
+
+/** 取值列：等宽字体；超长值自己换行，不撑表格。 */
+const VALUE_CELL: CSSProperties = { ...CELL_STYLE, fontFamily: 'var(--dsw-font-mono)', overflowWrap: 'anywhere' };
+
+/** 紧凑模式的备注行：跨满整行，小一号字，读数排在它上面一行。 */
+const NOTE_CELL: CSSProperties = {
+  ...CELL_STYLE,
+  paddingTop: 0,
+  borderTop: 'none',
+  fontSize: 11,
+  lineHeight: '17px',
+  color: 'var(--dsw-alias-label-tertiary)',
+};
+
+/** 未设置时取值列的占位，与「未设置」态用同一个词，免得读者要记两套说法。 */
+const UNSET_VALUE = '未设置';
+
 /**
  * 档位卡（票 02）：分段单选 + 标题旁 `?` 完整对照 + 单行状态行 + 卡头右侧清除按钮。
  *
@@ -389,6 +427,87 @@ function ModeCard(props: {
 }
 
 /**
+ * 诊断卡（票 03）：规则句 + 五态图例一行，下面是从上到下的三层步骤表格。
+ *
+ * 表格恒按 `diagnosis.rows` 的顺序画（env → patch → fallback），不筛掉没值的层——
+ * 「哪层没设」本身就是要看的信息。宽栏四列带备注；紧凑三列，备注挪到行下方，
+ * 两种宽度都不丢 `note`。
+ * @param props - 诊断结论与是否紧凑。
+ * @returns 诊断卡节点。
+ */
+function DiagnosisCard(props: { readonly diagnosis: Diagnosis; readonly compact: boolean }): ReactNode {
+  const { diagnosis, compact } = props;
+  return (
+    <Card title="优先级诊断链" compact={compact}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+          minWidth: 0,
+          fontSize: 12,
+          lineHeight: '18px',
+          color: 'var(--dsw-alias-label-secondary)',
+        }}
+      >
+        <span style={{ minWidth: 0 }}>{DIAGNOSIS_RULE}</span>
+        {LEGEND_STATES.map((state) => (
+          <Tag key={state} tone={STATE_TEXT[state].tone}>
+            {STATE_TEXT[state].text}
+          </Tag>
+        ))}
+      </div>
+
+      <table style={TABLE_STYLE}>
+        <thead>
+          <tr>
+            <th style={{ ...CELL_STYLE, width: '5em', borderTop: 'none' }}>状态</th>
+            <th style={{ ...CELL_STYLE, width: '40%', borderTop: 'none' }}>来源</th>
+            <th style={{ ...CELL_STYLE, width: '5em', borderTop: 'none' }}>取值</th>
+            {compact ? null : <th style={{ ...CELL_STYLE, borderTop: 'none' }}>备注</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {diagnosis.rows.map((row) => {
+            const state = STATE_TEXT[row.state];
+            return (
+              <Fragment key={row.level}>
+                <tr>
+                  <td style={CELL_STYLE}>
+                    <Tag tone={state.tone}>{state.text}</Tag>
+                  </td>
+                  <td style={{ ...CELL_STYLE, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ color: 'var(--dsw-alias-label-primary)' }}>{row.label}</span>
+                    <PathLabel path={row.location} />
+                  </td>
+                  <td style={VALUE_CELL}>{row.value ?? UNSET_VALUE}</td>
+                  {compact ? null : <td style={CELL_STYLE}>{row.note ?? ''}</td>}
+                </tr>
+                {compact && row.note !== null ? (
+                  <tr>
+                    <td colSpan={3} style={NOTE_CELL}>
+                      {row.note}
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {diagnosis.overriddenBy === null ? null : (
+        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+          你改的补丁层正被 <strong>{diagnosis.overriddenBy === 'env' ? '环境变量' : '更高优先级的补丁'}</strong>{' '}
+          盖住：面板写入的是补丁层，读到的生效值来自别处。
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/**
  * 渲染设置页里的 Ponytail 面板。
  * @param props - 宿主注入的 hook 与两个写回调。
  * @returns 面板节点。
@@ -444,38 +563,7 @@ export function PonytailPanel(props: PonytailPanelProps): ReactNode {
         />
       ) : null}
 
-      <Card title="优先级诊断链" compact={compact}>
-        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-          档位按 env → Profile 补丁 → 内置兜底 依次取值，先命中的赢。下面每一行都标出它现在是什么状态。
-        </p>
-        <ul
-          style={{
-            margin: 0,
-            paddingLeft: 18,
-            display: 'grid',
-            gridTemplateColumns: compact ? '1fr' : 'repeat(3, minmax(0, 1fr))',
-            gap: 4,
-          }}
-        >
-          {diagnosis.rows.map((row) => {
-            const state = STATE_TEXT[row.state];
-            return (
-              <li key={row.level} style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-                <Tag tone={state.tone}>{state.text}</Tag> <strong>{row.label}</strong>{' '}
-                <code>{row.location}</code>
-                {row.value === null ? null : <> = <code>{row.value}</code></>}
-                {row.note === null ? null : <> — {row.note}</>}
-              </li>
-            );
-          })}
-        </ul>
-        {diagnosis.overriddenBy === null ? null : (
-          <p style={{ margin: 0 }}>
-            你改的补丁层正被 <strong>{diagnosis.overriddenBy === 'env' ? '环境变量' : '更高优先级的补丁'}</strong>{' '}
-            盖住：面板写入的是补丁层，读到的生效值来自别处。
-          </p>
-        )}
-      </Card>
+      <DiagnosisCard diagnosis={diagnosis} compact={compact} />
 
       <EfficiencySection port={props.stats} compact={compact} />
     </div>

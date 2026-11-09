@@ -50,6 +50,7 @@ const STUB_MODULES = {
   '@deepseek-ai/dsh-client-ui-primitives': {
     Button: () => null,
     HoverCard: () => null,
+    PathLabel: () => null,
     SegmentedControl: () => null,
     Tag: () => null,
   },
