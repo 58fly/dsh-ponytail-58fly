@@ -72,7 +72,7 @@ cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.0.tgz
 | `/ponytail-review` | 按六阶审查一个改动：逻辑、安全、负载、测试、性能、有没有多余的代码 |
 | `/ponytail-audit` | 全仓审计：bug、安全洞、慢路径、该删该合的分支 |
 | `/ponytail-debt` | 盘点欠下的技术债（仓库里所有 `shortcut:` 注释） |
-| `/ponytail-gain` | 量化这次偷懒省下了多少 |
+| `/ponytail-gain` | 本机效率统计：受管轮次、注入次数、按档位分布，附上游基准推算区间 |
 | `/ponytail-help` | 用法速查 |
 
 模型也会自动调用：六份描述都是中文重写 + 原样保留英文触发词（`be lazy` / `simplest solution` / `yagni` / `debt`），中英文提问都能命中。

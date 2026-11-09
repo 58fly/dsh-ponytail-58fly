@@ -2,6 +2,40 @@
 
 本文件记录面向用户的变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 新增
+
+- **效率面板**：设置 → Ponytail 底部多一块「效率」，把本机运行期真发生过的事摆出来——
+  受管轮次、注入次数、切档次数、命令调用次数、注入字节，配一个注入率环和一张四档分布条。
+  图形是手写 SVG（一个环、四根 div 条），不引图表库，客户端体积 16.3 KB → 39.3 KB。
+  颜色全部走 `--dsw-alias-*` 主题变量，明暗两套主题都不会失明。
+- **`/ponytail-gain` 改成读本机统计**：原来是印上游基准记分牌，现在先印本机事实，再印一段
+  「比没用 ponytail 的情况（基准推算）」，三行区间各自带出处链接与限定语。
+  面板与命令共用同一份 `src/stats/baseline.ts`，系数只此一处。
+- **`src/stats` 计数层**：`StatsStore` 只存整数、只放内存、宿主重启即清零——插件的「零垃圾承诺」
+  是源码层不许出现任何写盘 API（`verify` 第 11 组守），统计也就跟着不落盘。
+- **`verify` 新增第 10b 组「效率面板的诚实卡口」**：UI 里出现写死颜色、出现「实时」这类会自己刷新的承诺、
+  或全仓出现「你省了 / 实际节省」的断言，`pnpm verify` 直接红；`--selftest` 里补了一条脏输入用例，
+  保证这条卡口不是装饰。
+
+### 变更
+
+- **客户端取数走页面全局 `fetch`，不再依赖 `connection` 服务**：宿主 `ctx.provide('connection', …)`
+  的句柄上没有 `fetch` 成员，早先假设的 `connection.rpc.handle` 通道在桌面宿主里落到静态 fallback（405）。
+  服务端改为在 `/api` 上注册 Fetch 精确路由 `POST /api/ponytail-stats/snapshot`（body 字面量 `null` 读、
+  `"reset"` 清零），客户端用同域 `fetch` 打过去，cookie 自动带。
+- **`ponytail-gain` 技能正文同步改口径**：先讲本机能数出来的事实，再讲上游基准；原来那句
+  「永远不要打印某个仓库的省钱数字」保留，并把终点指向面板的图形版。
+
+### 文档
+
+- 新增 `docs/design/ponytail-efficiency-ui.md`：版式、字号、间距、三种状态（空 / 有数 / 读不到）、
+  窄栏折行规则、清零二次确认、以及三条验收 grep 的出处。
+- 新增 `docs/research/upstream-efficiency-metrics.md`：上游基准的逐项复核（7 个系数、区间来源、
+  哪些量归因不到本机轮次）。
+- README 中英两版命令表同步 `/ponytail-gain` 的新口径。
+
 ## [0.3.0] - 2026-11-08
 
 这一版不改运行时行为，只做三件对外可见的事：**宿主版本区间打开**、**README 重写成中英双语**、

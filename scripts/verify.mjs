@@ -380,19 +380,36 @@ for (const file of libFiles.filter((name) => name.endsWith('.js'))) {
 // ── 3. 分层方向与循环依赖 ────────────────────────────────────────────────
 /**
  * 允许的依赖方向（只列更下层）：
- *   plugin.ts  —— 装配入口，可以引用全部四层
- *   四层        —— 只可引用 l0
- *   client/**  —— 只可引用 l0（浏览器 bundle 里不能出现 node: 内置模块）
+ *   plugin.ts  —— 装配入口，可以引用全部层
+ *   各层        —— 只可引用 l0
+ *   prompt      —— 例外：可引用 stats 的**类型**（StatsSink 回调形状），
+ *                  埋点由 plugin 注入，prompt 不认识计数器本体
+ *   stats       —— 只可引用 l0（纯内存计数器，零 I/O）
+ *   client/**  —— 只可引用 l0，外加 `stats/` 下的**纯数据与类型**：
+ *                  `stats/types.ts`（快照形状）与 `stats/baseline.ts`（系数表）。
+ *                  这两个文件被一道更窄的断言钉住「不得出现任何副作用与 node: 内置」，
+ *                  所以它们能安全进浏览器 bundle；`stats/store.ts` 与 `stats/index.ts`
+ *                  仍然不可见。
  * l0 不依赖任何自研层。
  */
-const LAYERS = ['l0', 'prompt', 'state', 'config', 'skills'];
+const LAYERS = ['l0', 'prompt', 'state', 'config', 'skills', 'stats'];
+
+/**
+ * 客户端允许引用的 stats 源文件。
+ *
+ * 只收这两个：`types.ts` 是纯类型与常量，`baseline.ts` 是纯数据表加一个纯函数。
+ * 它们编译后没有 import 任何 `node:` 模块，进浏览器 bundle 是安全的；
+ * `store.ts`（有私有状态）与 `index.ts`（碰 ctx 与 TextEncoder）不在名单里。
+ */
+const CLIENT_VISIBLE_STATS = new Set(['src/stats/types.ts', 'src/stats/baseline.ts']);
 const ALLOWED_DEPENDENCIES = new Map([
   ['l0', []],
-  ['prompt', ['l0']],
+  ['prompt', ['l0', 'stats']],
   ['state', ['l0']],
   ['config', ['l0']],
   ['skills', ['l0']],
-  ['client', ['l0']],
+  ['stats', ['l0']],
+  ['client', ['l0', 'stats']],
 ]);
 
 const sources = (await listFiles(join(root, 'src'))).filter(
@@ -450,9 +467,12 @@ for (const [file, targets] of graph) {
         `${file} 引用了装配入口 ${target}：四层不得反向依赖 plugin.ts，装配顺序只由它单向表达。`);
       continue;
     }
-    check(allowed.includes(toLayer),
+    // client 只放行 stats 层的两个纯数据/纯类型文件，其余 stats 源文件仍算越界。
+    const clientPure = fromLayer === 'client' && CLIENT_VISIBLE_STATS.has(target);
+    check(allowed.includes(toLayer) && (toLayer !== 'stats' || fromLayer !== 'client' || clientPure),
       `${file} 引用了 ${toLayer} 层（${target}）：分层的允许方向是 ` +
-        `plugin.ts → {prompt,state,config,skills} → l0，${fromLayer} 只可引用 ${allowed.join('、') || '（无，l0 必须自足）'}。`);
+        `plugin.ts → {prompt,state,config,skills,stats} → l0，${fromLayer} 只可引用 ${allowed.join('、') || '（无，l0 必须自足）'}` +
+        `${fromLayer === 'client' && toLayer === 'stats' ? '；client 只可见 stats/types.ts 与 stats/baseline.ts' : ''}。`);
   }
 }
 
@@ -510,7 +530,7 @@ if (bangCount > 0) {
 for (const [file, targets] of graph) {
   if (!file.startsWith('src/client/')) continue;
   for (const target of targets) {
-    if (!target.startsWith('src/client/') && !target.startsWith('src/l0/')) {
+    if (!target.startsWith('src/client/') && !target.startsWith('src/l0/') && !CLIENT_VISIBLE_STATS.has(target)) {
       failures.push(`${file} 引用了 ${target}：客户端 bundle 里不能出现服务端模块（会带上 node: 内置依赖）。`);
     }
   }
@@ -828,6 +848,67 @@ if (patchFile !== null) {
   );
 }
 
+// ── 10b. 效率面板的诚实卡口（#08）────────────────────────────────────────
+/**
+ * 「这插件到底省了多少」是本仓最容易滑向营销的一句话。设计文档
+ * `docs/design/ponytail-efficiency-ui.md` §11 已经规定了三条 grep，但写在文档里的
+ * 断言没人会跑——这里把它变成红灯，跑一次 `pnpm verify` 就同时验证：
+ *
+ *   a. UI 里不出现写死颜色（宿主有明暗两套主题，`#hex` 会在一套里失明）；
+ *   b. 不出现「你省了 / 实际节省」这类断言（上限是「基准推算」）；
+ *   c. 不出现「实时」这类承诺（数字是快照，刷新靠用户点）。
+ *
+ * 扫的是**原始文本而不是 stripComments**：违规常常先出现在注释里，注释正是
+ * 后续抄进 UI 的模板。`panel.tsx` / `charts.tsx` 不在 1 组（3 组管依赖方向、
+ * 4 组管类型断言），这里只补这三条与效率面板相关的纪律。
+ */
+const UI_SURFACE = ['src/client/panel.tsx', 'src/client/charts.tsx'];
+const HEX_COLOR = /#[0-9a-fA-F]{3,8}\b/;
+const HONESTY_PHRASES = ['你省了', '实际节省'];
+/** 「实时」两个字本身合法（比如文档讲别人的需求），这里只禁 UI 承诺：见 UI_SURFACE 扫描。 */
+const LIVE_CLAIM = /实时/;
+const uiText = new Map();
+for (const file of UI_SURFACE) {
+  const raw = await readText(join(root, file));
+  if (raw === null) {
+    check(false, `${file} 不存在：效率面板的两个文件必须都在，否则本组卡口形同虚设。`);
+    continue;
+  }
+  uiText.set(file, raw);
+}
+for (const [file, raw] of uiText) {
+  for (const [index, line] of raw.split('\n').entries()) {
+    if (HEX_COLOR.test(line)) {
+      check(false, `${file}:${index + 1} 出现写死的颜色 ${line.trim().slice(0, 60)}：只能用 --dsw-alias-* 主题变量。`);
+    }
+    if (LIVE_CLAIM.test(line)) {
+      check(false, `${file}:${index + 1} 出现「实时」：统计是快照，说实时等于承诺它会自己刷新。`);
+    }
+  }
+}
+/** 全仓（源码 + 技能）只许在「禁止这样写」的语境里出现诚实性短语。 */
+const honestyHits = [];
+/**
+ * 允许清单：这两处是**禁令本身**（`baseline.ts` 的注释写明不许这么讲，
+ * 技能里警告不要打印「你在这里省了 X」）。文件级白名单比行级更稳——
+ * 行号一改就漂，白名单文件新增出现仍会被抓到。
+ */
+const HONESTY_ALLOWED = new Set(['src/stats/baseline.ts', 'skills/ponytail-gain/SKILL.md']);
+for (const file of [...sources, ...(await listFiles(join(root, 'skills'))).map((file) => `skills/${file}`)]) {
+  const raw = await readText(join(root, file));
+  if (raw === null) continue;
+  for (const [index, line] of raw.split('\n').entries()) {
+    if (!HONESTY_PHRASES.some((phrase) => line.includes(phrase))) continue;
+    if (HONESTY_ALLOWED.has(file)) continue;
+    honestyHits.push(`${file}:${index + 1}`);
+  }
+}
+check(
+  honestyHits.length === 0,
+  `出现「你省了 / 实际节省」这类断言：${honestyHits.join('，')}。` +
+    '效率只能讲「比没用 ponytail 的情况（基准推算）」并给出处，见 docs/design/ponytail-efficiency-ui.md §11。',
+);
+
 // ── 11. 零垃圾承诺：插件源码不得自己写盘 ─────────────────────────────────
 /**
  * 为什么这条是硬约束：插件的全部持久状态都由宿主
@@ -996,6 +1077,18 @@ if (SELFTEST) {
         return hits.length === 0 ? '放过' : hits.join(',');
       },
       expect: '放过',
+    },
+    {
+      name: '效率面板卡口认出写死颜色与「你省了」',
+      run: () => {
+        const hits = [];
+        const hexLine = 'color: "#fff"';
+        if (HEX_COLOR.test(hexLine)) hits.push('hex');
+        if (HONESTY_PHRASES.some((phrase) => '你省了 40% 的 token'.includes(phrase))) hits.push('claim');
+        if (LIVE_CLAIM.test('统计实时更新')) hits.push('live');
+        return hits.join(',');
+      },
+      expect: 'hex,claim,live',
     },
   ];
   let selfPassed = 0;

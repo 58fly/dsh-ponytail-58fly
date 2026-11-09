@@ -28,7 +28,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client';
 import { PLUGIN_ID } from '../l0/paths.js';
 import { coerceMode, type RuntimeMode } from '../l0/mode.js';
 import { describeError } from '../l0/errors.js';
-import { PonytailPanel, type PanelSnapshot, type WriteOutcome } from './panel.js';
+import type { StatsView } from '../stats/types.js';
+import { PonytailPanel, type PanelSnapshot, type StatsPanelPort, type StatsStatus, type WriteOutcome } from './panel.js';
 
 /**
  * 硬依赖只有 `slots`：它是这个文件唯一的注册目标。
@@ -49,6 +50,75 @@ const SECTION_LABEL = 'Ponytail';
 
 /** `ctx.inject` 等待失败时记日志用的 scope。 */
 const LOGGER_SCOPE = 'ponytail-58fly';
+
+/**
+ * 统计端点。与 `src/plugin.ts` 的 `STATS_PATH` 是同一个契约的两半，
+ * 所以两边各写一份字面量：放进共享常量会让人以为它可以单方面改。
+ *
+ * 为什么不是 `connection.rpc.call`：宿主把自定义 RPC 通道交给了静态 fallback
+ * （POST 405 / GET 404，桌面宿主实测），所以服务端挂在 `/api` 的 Fetch 精确路由上，
+ * 这里就用同一个会话的 `fetch` 打过去——鉴权 cookie 本来就跟着走。
+ *
+ * 为什么用页面全局 `fetch` 而不是 `connection.fetch.fetch`：客户端 `connection`
+ * 服务 `provide` 出来的 handle 只有 `interactions / openWebSocket / isLoopback /
+ * generation / state / rpc / reconnect / registerGenerationSource / start`
+ * （`@deepseek-ai/dsh-client-connection/lib/client.browser.js:1421-1496`），**没有 `fetch`**。
+ * 早前按「handle 暴露 fetch.fetch」写的那版在本机实测永远抛 TypeError、
+ * 面板停在错误态。同域名请求自带会话 cookie，`fetch` 就是最薄的正确契约。
+ */
+const STATS_PATH = '/api/ponytail-stats/snapshot';
+
+/** 清零用的载荷：字符串字面量，与服务端的 `isResetRequest` 对齐。 */
+const STATS_RESET = 'reset';
+
+/** 服务端 `StatsReply` 的客户端视图。 */
+interface StatsReplyShape {
+  readonly snapshot: StatsView;
+  readonly assumption: string;
+}
+
+/**
+ * 把响应收窄成快照。
+ *
+ * 一层层验形状而不是 `as`：宿主换版本时这里会给出可读的错误，而不是让面板拿到
+ * 一个 `undefined.managedTurns` 然后在渲染里崩。`verify` 第 6 组也禁 `as unknown as`。
+ * @param response - `fetch` 的返回。
+ * @returns 快照。
+ */
+async function readStatsReply(response: Response): Promise<StatsView> {
+  if (!response.ok) throw new Error(`统计端点返回 ${String(response.status)}`);
+  const body: unknown = await response.json();
+  if (body === null || typeof body !== 'object' || !('snapshot' in body)) {
+    throw new Error('统计通道返回的形状不认识');
+  }
+  const snapshot = (body as StatsReplyShape).snapshot;
+  if (snapshot === null || typeof snapshot !== 'object' || typeof snapshot.managedTurns !== 'number') {
+    throw new Error('统计通道返回的快照不完整');
+  }
+  return snapshot;
+}
+
+/** 统计端点的传输：页面全局 `fetch` 的形状（测试里换成桩）。 */
+type StatsTransport = (request: Request) => Promise<Response>;
+
+/**
+ * 打一次统计端点；`payload` 原样 JSON 化，`'reset'` 表示清零。
+ * @param transport - 页面的 `fetch`。
+ * @param payload - `null` 读取，`'reset'` 清零。
+ */
+async function requestStats(transport: StatsTransport, payload: unknown): Promise<Response> {
+  // `Request` 不接受相对 URL（浏览器要求绝对、Node 干脆抛），所以按当前页面 origin 补全；
+  // 测试环境没有 `location`，退回一个占位 origin —— 桩只看 pathname。
+  const here = (globalThis as { location?: { origin?: string } }).location;
+  const base = here?.origin ?? 'http://localhost';
+  return transport(
+    new Request(new URL(STATS_PATH, base), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
 
 /**
  * 客户端入口。
@@ -76,6 +146,79 @@ export function apply(ctx: Context): void {
         : { ok: false, message: '宿主拒绝了这次清除：配置可能只读，或这个字段本来就没有用户层覆盖。' };
     };
 
+    // 统计通道：挂载时拉一次，之后只有用户点「刷新」才再拉。宿主的事件转发白名单
+    // 是硬编码且每进程只允许一个源（票 04），没有合法的推送，所以这里不假装能自动更新。
+    const pageFetch = (globalThis as { fetch?: StatsTransport }).fetch;
+    let statsSnapshot: StatsView | null = null;
+    let statsStatus: StatsStatus = 'loading';
+    let notify = (): void => {};
+
+    const pull = (): void => {
+      statsStatus = statsSnapshot === null ? 'loading' : statsStatus;
+      notify();
+      const call = pageFetch === undefined ? null : pageFetch;
+      if (call === null) {
+        statsStatus = 'error';
+        notify();
+        return;
+      }
+      void requestStats(call, null)
+        .then(readStatsReply)
+        .then((snapshot) => {
+          statsSnapshot = snapshot;
+          statsStatus = 'ready';
+        })
+        .catch((error: unknown) => {
+          statsStatus = 'error';
+          ctx.logger(LOGGER_SCOPE).warn('效率统计读取失败：' + describeError(error));
+        })
+        .finally(notify);
+    };
+
+    const statsPort: StatsPanelPort = {
+      get snapshot() {
+        return statsSnapshot;
+      },
+      get status() {
+        return statsStatus;
+      },
+      refresh: () => {
+        pull();
+      },
+      reset: async (): Promise<WriteOutcome> => {
+        if (pageFetch === undefined) {
+          return { ok: false, message: '宿主没有提供统计通道，清零做不到。' };
+        }
+        try {
+          statsSnapshot = await readStatsReply(await requestStats(pageFetch, STATS_RESET));
+          statsStatus = 'ready';
+          notify();
+          return { ok: true, message: '已清零，从 0 重新计数。' };
+        } catch (error) {
+          return { ok: false, message: '清零失败：' + describeError(error) };
+        }
+      },
+    };
+
+    // 面板要重渲染才能看见新数字：这里把读接口包成一个「订阅-快照」对，
+    // 借用 renderer 已有的 `useSnapshot` 机制（同一套 standardHook 约定）。
+    const statsStore = {
+      getSnapshot: () => ({ port: statsPort, revision: statsStatus === 'ready' ? 1 : 0 }),
+      subscribe: (listener: () => void) => {
+        notify = listener;
+        return () => {
+          notify = () => {};
+        };
+      },
+    };
+
+    scope.effect(() => {
+      pull();
+      return () => {
+        notify = () => {};
+      };
+    }, 'ponytail-58fly: 效率统计首次读取');
+
     scope.effect(
       () =>
         scope.slots.inject('settings.section', () =>
@@ -86,9 +229,10 @@ export function apply(ctx: Context): void {
               order: SECTION_ORDER,
               label: SECTION_LABEL,
               inject: () => ({
-                hooks: { snapshot: form },
+                hooks: { snapshot: form, statsStore },
                 writeMode,
                 resetMode,
+                stats: statsPort,
               }),
             },
             PonytailPanel,

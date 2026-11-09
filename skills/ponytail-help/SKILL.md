@@ -29,7 +29,7 @@ description: >
 | **ponytail-review** | `/ponytail-review` | 评审一次 diff：bug、安全、负载、缺测试、速度、能砍什么。每条发现都说清会怎样坏、怎么修。 |
 | **ponytail-audit** | `/ponytail-audit` | 同样的质量审计，范围是整个仓库，按重要性排序。 |
 | **ponytail-debt** | `/ponytail-debt` | 把 `shortcut:` 注释收成一本可跟踪的账。 |
-| **ponytail-gain** | `/ponytail-gain` | 实测影响记分牌：更少代码、更低成本、更快。 |
+| **ponytail-gain** | `/ponytail-gain` | 本机运行期统计：受管轮次、注入次数与注入率、切档次数，附上游基准推算区间。 |
 | **ponytail-help** | `/ponytail-help` | 就是这张卡。 |
 
 其他宿主（Codex CLI、IDE 扩展）用它们自己的调用形式；其它工具用自家的更新流程。

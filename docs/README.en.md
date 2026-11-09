@@ -72,7 +72,7 @@ The ladder lives in a fixed system-prompt section rendered once when the session
 | `/ponytail-review` | Review one change against the six levels: logic, safety, load, tests, speed, unnecessary code |
 | `/ponytail-audit` | Whole-repo audit: bugs, security holes, slow paths, branches to delete or merge |
 | `/ponytail-debt` | The debt ledger: every `shortcut:` comment in the repo |
-| `/ponytail-gain` | Quantify what this bout of laziness saved |
+| `/ponytail-gain` | Local efficiency stats: managed turns, injections, per-level split, with upstream benchmark ranges |
 | `/ponytail-help` | Quick reference |
 
 The model also invokes them on its own: every description is a Chinese rewrite that keeps the original English trigger words (`be lazy` / `simplest solution` / `yagni` / `debt`), so either language hits.

@@ -38,6 +38,7 @@ import { createModeUpdateMessage, applyModeUpdate } from './notice.js';
 import type { PromptPorts } from './port.js';
 import { renderModeUpdate } from './ladder.js';
 import type { LadderSource } from './source.js';
+import type { StatsSink } from '../stats/types.js';
 
 /** 装配参数。 */
 export interface ReminderOptions {
@@ -45,6 +46,11 @@ export interface ReminderOptions {
   readonly ports: PromptPorts;
   /** 阶梯正文来源。 */
   readonly source: LadderSource;
+  /**
+   * 效率统计的埋点。可选：没有它插件照常工作，只是面板与命令看到的是空数据。
+   * 只收两个回调而不是 store 本体，本层于是不必认识 stats 层的类型。
+   */
+  readonly stats?: StatsSink | undefined;
 }
 
 /** 日志前缀，与插件名一致，方便用户在 `~/.dsh/logs` 里筛。 */
@@ -76,6 +82,8 @@ export function installModeReminder(ctx: Context, options: ReminderOptions): voi
 
         const entry = options.ports.ensure(payload.agent.id, () => options.ports.mode);
         const current = options.ports.mode;
+        // 受管轮次：走到这里说明本步确实由 agent 进入，正是「ponytail 管了一轮」。
+        options.stats?.onTurn(current);
 
         if (current === entry.announcedMode) {
           // 档位没变：把本步批次里的残留通知剔掉（正常情况下本来就没有）。
@@ -84,6 +92,8 @@ export function installModeReminder(ctx: Context, options: ReminderOptions): voi
 
         const previous = entry.announcedMode;
         const text = renderModeUpdate(current, previous, options.source.body);
+        // 注入次数与字节数：只在这一步真要把 reminder 送进消息批次时记。
+        options.stats?.onInject(text);
         const message = createModeUpdateMessage(current, previous, text);
         // 先标记再返回：`applyModeUpdate` 是纯函数，不会失败；若在它之后再标记，
         // 中途抛错会让下一步重复注入同一条通知。

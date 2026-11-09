@@ -22,6 +22,24 @@ import { useState, type ReactNode } from 'react';
 import { Button, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
 import { diagnose, type DiagnosisState } from '../l0/diagnosis.js';
+import { BASELINE, BASELINE_CAVEAT, type BaselineRow } from '../stats/baseline.js';
+import type { StatsView } from '../stats/types.js';
+import { BarList, Ring } from './charts.js';
+
+/** 效率区块的读取状态。`unsupported` 与 `error` 对用户是同一句话，分开只为排查。 */
+export type StatsStatus = 'loading' | 'ready' | 'error';
+
+/** `src/client/index.ts` 交给面板的效率侧接口。 */
+export interface StatsPanelPort {
+  /** 最近一次成功读到的快照；从没读到过是 null。 */
+  readonly snapshot: StatsView | null;
+  /** 上一次读取的状态。 */
+  readonly status: StatsStatus;
+  /** 手动重读一次（面板挂载时 `index.ts` 已经自动读过一次）。 */
+  readonly refresh: () => void;
+  /** 清零；成功后会把状态刷成空快照。 */
+  readonly reset: () => Promise<WriteOutcome>;
+}
 
 /** 面板从宿主快照里读到的形状（`ConfigFormSnapshot` 的可用子集）。 */
 export interface PanelSnapshot {
@@ -64,6 +82,8 @@ export interface PonytailPanelProps {
   readonly writeMode: (mode: RuntimeMode) => Promise<WriteOutcome>;
   /** 清掉用户层的 `defaultMode`，回到继承值。 */
   readonly resetMode: () => Promise<WriteOutcome>;
+  /** 效率统计的读接口（04 定的 connection.rpc 通道）。 */
+  readonly stats: StatsPanelPort;
 }
 
 /** 四个档位在面板上的展示名。 */
@@ -199,6 +219,296 @@ export function PonytailPanel(props: PonytailPanelProps): ReactNode {
           </p>
         )}
       </section>
+
+      <EfficiencySection port={props.stats} />
+    </section>
+  );
+}
+
+/** 效率区块的文案：全部来自 `docs/design/ponytail-efficiency-ui.md` §7，逐字照抄。 */
+const STATS_TEXT = {
+  loading: '正在读取统计…',
+  emptyTitle: '本机运行期累计：还没开始计数',
+  emptyBody: '发一条消息就会开始记：每个经过 Ponytail pre-step 的轮次都算一次。',
+  unreadable: '统计暂时读不到（宿主没提供这个通道，或插件刚重启）。',
+  resetting: '正在清零…',
+  resetDone: '已清零，从 0 重新计数。',
+  baselineTitle: '比没用 ponytail 的情况（基准推算）',
+  baselineNote: '基线：上游 39 任务 × 5 次 × 三臂，Claude Code + Opus 5.5',
+};
+
+/** 四个档位在按档位分布里的标签（与命令同一套名字，不加中文后缀：宽度只有 36px）。 */
+const BAR_LABEL: Readonly<Record<RuntimeMode, string>> = { off: 'off', lite: 'lite', full: 'full', ultra: 'ultra' };
+
+/** 千分位。 */
+function group(value: number): string {
+  return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
+/** 字节数的人类可读近似值，与命令层同一口径。 */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return String(Math.round(bytes)) + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+/** `HH:MM`，只用于「数据截至」。 */
+function clockOf(epochMs: number): string {
+  const date = new Date(epochMs);
+  return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
+}
+
+/** 主行里的一组「数字 + 单位 + 说明」。 */
+function Metric(props: { readonly value: string; readonly unit: string; readonly hint: string }): ReactNode {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 4 }}>
+      <span
+        style={{
+          fontSize: 20,
+          lineHeight: '28px',
+          fontWeight: 600,
+          color: 'var(--dsw-alias-label-primary)',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {props.value}
+      </span>
+      <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-tertiary)' }}>{props.unit}</span>
+      <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>{props.hint}</span>
+    </span>
+  );
+}
+
+/**
+ * 基准推算三行 + 出处 + 限定语。
+ *
+ * 只出 outputTokens / cost / time（§6）：行数、gzip 面积归因不到本机这些轮次，
+ * 轮次与「多少任务更便宜」是基准自己的统计量。系数从 `baseline.ts` 读，
+ * 这里只做乘与格式化——把裸系数写进 JSX 就等于在 UI 里立了第二份真相。
+ * @returns 三行定值表 + 页脚。
+ */
+function BaselineRows(): ReactNode {
+  const rows: readonly { readonly label: string; readonly line: BaselineRow }[] = [
+    { label: '输出 token', line: BASELINE.outputTokens },
+    { label: '成本', line: BASELINE.cost },
+    { label: '耗时', line: BASELINE.time },
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {rows.map((row) => {
+        const span = row.line.range;
+        const range =
+          span === undefined ? '（无区间）' : '[' + String(Math.round(span[0] * 100)) + '%, ' + String(Math.round(span[1] * 100)) + '%]';
+        return (
+          <div key={row.label} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)', minWidth: 72 }}>
+              {row.label}
+            </span>
+            <span
+              style={{
+                fontSize: 14,
+                lineHeight: '22px',
+                fontWeight: 500,
+                color: 'var(--dsw-alias-label-primary)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {'约 ' + String(Math.round(row.line.center * 100)) + '%'}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                lineHeight: '17px',
+                color: 'var(--dsw-alias-label-tertiary)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {range}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 「效率」区块（票 06）。
+ *
+ * 三种状态各有各的说法：空态是正常的（还没开始计数），读不到是异常的（通道没了），
+ * 两者都用一句完整的话，不用感叹号也不用警告三角（§7）。
+ * @param props - 读接口。
+ * @returns 区块节点。
+ */
+function EfficiencySection(props: { readonly port: StatsPanelPort }): ReactNode {
+  const [resetting, setResetting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+
+  const doReset = async (): Promise<void> => {
+    setConfirming(false);
+    setResetting(true);
+    try {
+      const outcome = await props.port.reset();
+      setResetFeedback(outcome.ok ? STATS_TEXT.resetDone : outcome.message);
+    } catch (error) {
+      setResetFeedback('清零抛错：' + String(error));
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const snapshot = props.port.snapshot;
+  const empty = snapshot === null || snapshot.managedTurns === 0;
+
+  return (
+    <section
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        paddingTop: 12,
+        borderTop: '0.5px solid var(--dsw-alias-border-l3)',
+      }}
+    >
+      <header style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0 }}>效率</h3>
+        {snapshot === null || snapshot.lastAt === null ? null : (
+          <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
+            {'数据截至 ' + clockOf(snapshot.lastAt)}
+          </span>
+        )}
+        <Button variant="outline" size="sm" disabled={props.port.status === 'loading'} onClick={props.port.refresh}>
+          刷新
+        </Button>
+      </header>
+
+      {props.port.status === 'loading' && snapshot === null ? (
+        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+          {STATS_TEXT.loading}
+        </p>
+      ) : null}
+
+      {props.port.status === 'error' ? (
+        <p
+          style={{
+            margin: 0,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            fontSize: 12,
+            lineHeight: '18px',
+            color: 'var(--dsw-alias-state-error-primary)',
+          }}
+        >
+          <span>{STATS_TEXT.unreadable}</span>
+          <Button variant="outline" size="sm" onClick={props.port.refresh}>
+            重试
+          </Button>
+        </p>
+      ) : null}
+
+      {snapshot === null ? null : (
+        <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 16 }}>
+            {empty ? (
+              <span style={{ fontSize: 14, lineHeight: '22px', fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>
+                {STATS_TEXT.emptyTitle}
+              </span>
+            ) : (
+              <>
+                <Metric value={group(snapshot.managedTurns)} unit="轮" hint="受管" />
+                <Metric value={group(snapshot.injections)} unit="次" hint="注入" />
+                <Metric value={group(snapshot.modeSwitches)} unit="次" hint="切档" />
+                <Metric value={group(snapshot.commandCalls)} unit="次" hint="命令调用" />
+                <Metric value={formatBytes(snapshot.injectedBytes)} unit="" hint="注入字节" />
+              </>
+            )}
+          </div>
+
+          {empty ? (
+            <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+              {STATS_TEXT.emptyBody}
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                <Ring
+                  value={snapshot.injections}
+                  total={snapshot.managedTurns}
+                  label="注入率"
+                />
+                <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+                  {'注入率 · ' + group(snapshot.injections) + ' / ' + group(snapshot.managedTurns)}
+                </span>
+              </div>
+              <BarList
+                label="按档位分布（受管轮次）"
+                rows={RUNTIME_MODES.map((mode) => ({ key: mode, label: BAR_LABEL[mode], value: snapshot.turnsByMode[mode] }))}
+              />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <h4 style={{ margin: 0, fontSize: 12, lineHeight: '18px', fontWeight: 500, color: 'var(--dsw-alias-label-secondary)' }}>
+                {STATS_TEXT.baselineTitle}
+              </h4>
+              <Tag tone="quiet">基准推算</Tag>
+            </div>
+            <BaselineRows />
+            <p style={{ margin: 0, fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
+              {STATS_TEXT.baselineNote}
+              {' · '}
+              <a
+                href={BASELINE.outputTokens.source}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--dsw-alias-link)' }}
+              >
+                方法论
+              </a>
+              {' · '}
+              {BASELINE_CAVEAT}
+            </p>
+          </div>
+        </>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <Button variant="outline" size="sm" disabled={resetting || confirming} onClick={() => setConfirming(true)}>
+          {resetting ? STATS_TEXT.resetting : '清零统计'}
+        </Button>
+        {confirming ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <strong style={{ fontSize: 12, lineHeight: '18px' }}>清零本机统计？</strong>
+            <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+              受管轮次、注入次数、注入字节、切档次数和命令调用次数都会归零，无法撤销。配置和档位不受影响。
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setConfirming(false)}>
+              取消
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                void doReset();
+              }}
+            >
+              清零
+            </Button>
+          </span>
+        ) : null}
+        {resetFeedback === null ? null : (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Tag tone={resetFeedback === STATS_TEXT.resetDone ? 'success' : 'danger'}>
+              {resetFeedback === STATS_TEXT.resetDone ? '已清零' : '未清零'}
+            </Tag>
+            <span style={{ fontSize: 12, lineHeight: '18px' }}>{resetFeedback}</span>
+          </span>
+        )}
+      </div>
     </section>
   );
 }

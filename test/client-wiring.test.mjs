@@ -160,7 +160,11 @@ test('configForms 缺席时一个槽位都不注册，也不抛错', async () =>
   const { ctx, state } = fakeCtx({ forms: null });
   client.apply(ctx);
   await settle();
-  assert.deepEqual(state.deps, [['configForms']], 'configForms 必须走运行时 ctx.inject，不能进顶层 inject');
+  assert.deepEqual(
+    state.deps,
+    [['configForms']],
+    'configForms 必须走运行时 ctx.inject，不能进顶层 inject',
+  );
   assert.deepEqual(state.slotInjectKeys, [], '服务缺席时不该去碰任何槽位');
   assert.deepEqual(state.registered, []);
   assert.deepEqual(state.warnings, [], '服务缺席是正常降级，不是错误，不该 warn');
@@ -205,7 +209,7 @@ test('面板拿到的 useSnapshot 与注入的 hooks 同名约定一致（render
   const face = state.registered[0].entry.inject();
   // renderer 的 standardHookPropName('snapshot') === 'useSnapshot'；这里钉住「我们只提供 snapshot」，
   // 免得有人把 props 名直接写成 useSnapshot 又在 renderer 那边改名，变成双重前缀。
-  assert.deepEqual(Object.keys(face.hooks), ['snapshot']);
+  assert.deepEqual(Object.keys(face.hooks), ['snapshot', 'statsStore'], '效率读接口也走 hooks，不另造 props 约定');
   assert.equal(face.useSnapshot, undefined);
 });
 
@@ -293,4 +297,80 @@ test('面板接线抛错时降级成一条 warn，面板不出现但客户端条
   assert.equal(state.warnings.length, 1, '必须恰好记一条 warn');
   assert.match(state.warnings[0], /客户端面板接线失败/);
   assert.match(state.warnings[0], /not registered/);
+});
+
+test('效率读接口挂在 hooks 上，且首次读取失败时不假装有数据', async () => {
+  const client = await loadClient();
+  const form = fakeForm();
+  const calls = [];
+  const { ctx, state } = fakeCtx({ forms: form });
+  // 传输换成页面全局 fetch 的桩：客户端不再依赖 connection 服务的形状。
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (request) => {
+    const payload = JSON.parse(await request.text());
+    calls.push([new URL(request.url).pathname, request.method, payload]);
+    if (payload === 'reset') {
+      return new Response(
+        JSON.stringify({
+          snapshot: {
+            version: 1,
+            managedTurns: 0,
+            injections: 0,
+            injectedBytes: 0,
+            turnsByMode: { off: 0, lite: 0, full: 0, ultra: 0 },
+            modeSwitches: 0,
+            commandCalls: 0,
+            firstAt: null,
+            lastAt: null,
+            revision: 0,
+          },
+          assumption: 'x',
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      );
+    }
+    throw new Error('channel offline');
+  };
+  const wrapped = {
+    ...ctx,
+    inject(deps, callback) {
+      state.deps.push(deps);
+      const scope = {
+        configForms: { get: () => form },
+        effect(factory) {
+          const disposer = factory();
+          return typeof disposer === 'function' ? disposer : () => {};
+        },
+        slots: {
+          inject(_key, callback) {
+            const disposer = callback();
+            return typeof disposer === 'function' ? disposer : () => {};
+          },
+          register(entry, component) {
+            state.registered.push({ entry, component });
+            return () => {};
+          },
+        },
+      };
+      callback(scope);
+      return Promise.resolve({ dispose: () => {} });
+    },
+  };
+  try {
+    client.apply(wrapped);
+    await settle();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  const face = state.registered[0].entry.inject();
+  assert.equal(typeof face.stats.refresh, 'function');
+  assert.equal(typeof face.stats.reset, 'function');
+  assert.equal(face.stats.snapshot, null, '首次读取失败时不留半截数据');
+  assert.equal(face.stats.status, 'error', '通道不通必须是可见的错误态，不是空态');
+  const outcome = await face.stats.reset();
+  assert.equal(outcome.ok, true);
+  assert.equal(face.stats.snapshot.managedTurns, 0);
+  assert.deepEqual(calls.map((call) => call[2]), [null, 'reset']);
+  assert.equal(calls[0][0], '/api/ponytail-stats/snapshot', '端点路径与服务端 Fetch 路由必须是同一份契约');
+  assert.equal(calls[0][1], 'POST', '服务端只认 POST');
 });
