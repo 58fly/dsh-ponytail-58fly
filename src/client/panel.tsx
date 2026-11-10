@@ -29,7 +29,13 @@ import {
 } from 'react';
 import { Button, HoverCard, PathLabel, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
-import { diagnose, type Diagnosis, type DiagnosisLevel, type DiagnosisState } from '../l0/diagnosis.js';
+import {
+  DIAGNOSIS_PATCH_FROM_PROFILE,
+  diagnose,
+  type Diagnosis,
+  type DiagnosisLevel,
+  type DiagnosisState,
+} from '../l0/diagnosis.js';
 import { BASELINE, BASELINE_CAVEAT, type BaselineRow } from '../stats/baseline.js';
 import type { StatsView } from '../stats/types.js';
 import { BarList, Ring } from './charts.js';
@@ -136,11 +142,33 @@ const MODE_HELP: Readonly<Record<RuntimeMode, string>> = {
   ultra: '还要质疑需求，动手前先反驳。',
 };
 
-/** 状态行里的覆盖关系：面板只认 env / patch，其余一律按无覆盖写。 */
+/** 状态行里的覆盖关系：面板只认 env / patch，其余另判。 */
 const OVERRIDE_TEXT: Readonly<Partial<Record<DiagnosisLevel, string>>> = {
   env: '被环境变量覆盖',
   patch: '被 Profile 补丁覆盖',
 };
+
+/** 补丁行命中、但注脚说自己来自组合层时，状态行要写的那句话。 */
+const OVERRIDE_FROM_PROFILE = '来自 Profile 组合层';
+
+/**
+ * 状态行第三段该写什么。
+ *
+ * `overriddenBy` 只回答「谁盖住了用户层」，`null` 同时涵盖「谁都没写」与
+ * 「组合层给了值」两种情况，直接写「无覆盖」会在后一种上撒谎。组合层这件事
+ * 只有补丁行自己知道（`state === 'hit'` 且注脚是组合层那句），所以在这里补判。
+ * @param diagnosis - `diagnose()` 的结论。
+ * @returns 覆盖关系的人话。
+ */
+function overrideText(diagnosis: Diagnosis): string {
+  const claimed = OVERRIDE_TEXT[diagnosis.overriddenBy ?? 'fallback'];
+  if (claimed !== undefined) return claimed;
+  const patchRow = diagnosis.rows.find((row) => row.level === 'patch');
+  if (patchRow !== undefined && patchRow.state === 'hit' && patchRow.note === DIAGNOSIS_PATCH_FROM_PROFILE) {
+    return OVERRIDE_FROM_PROFILE;
+  }
+  return '无覆盖';
+}
 
 /** 诊断状态对应的 Tag 语气与中文说明。 */
 const STATE_TEXT: Readonly<Record<DiagnosisState, { tone: 'success' | 'warning' | 'danger' | 'quiet' | 'info'; text: string }>> = {
@@ -417,13 +445,11 @@ function ModeCard(props: {
         }}
       >
         <span style={STATUS_FACT}>{diagnosis.effective}</span>
-        <span>·</span>
+        <span>｜</span>
         <span style={STATUS_FACT}>{snapshot.revision === undefined ? 'revision 未知' : 'revision ' + String(snapshot.revision)}</span>
-        <span>·</span>
-        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-          {OVERRIDE_TEXT[diagnosis.overriddenBy ?? 'fallback'] ?? '无覆盖'}
-        </span>
-        {snapshot.writable ? null : <span>· 配置只读</span>}
+        <span>｜</span>
+        <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{overrideText(diagnosis)}</span>
+        {snapshot.writable ? null : <span>｜ 配置只读</span>}
       </div>
 
       {feedback === null ? null : (

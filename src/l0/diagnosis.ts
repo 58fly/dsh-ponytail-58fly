@@ -30,6 +30,15 @@ export const DIAGNOSIS_FALLBACK_LOCATION = 'src/l0/mode.ts → DEFAULT_MODE';
 /** 值非法时的统一说明，与服务端 `INVALID_PROBLEM` 同值。 */
 export const DIAGNOSIS_INVALID_PROBLEM = '值无效，已忽略';
 
+/**
+ * 补丁行的注脚：这一值只存在于 profile 组合层，用户没手写过。
+ *
+ * 导出是因为面板要拿它判断「生效值来自组合层」（`overriddenBy` 只表达
+ * 「谁盖住了用户层」，表达不了这件事）。两边共用同一份字面量，
+ * 就不会出现改了注脚、面板判据却认不出的情况。
+ */
+export const DIAGNOSIS_PATCH_FROM_PROFILE = '这一值来自 profile 组合层，不是用户手写的。';
+
 /** 诊断链的层名，与服务端 `PriorityLevel` 取值域相同。 */
 export type DiagnosisLevel = 'env' | 'patch' | 'fallback';
 
@@ -192,7 +201,7 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
       location: LOCATIONS.patch,
       value: patchRaw,
       state: 'hit',
-      note: patchOrigin === '组合层' ? '这一值来自 profile 组合层，不是用户手写的。' : null,
+      note: patchOrigin === '组合层' ? DIAGNOSIS_PATCH_FROM_PROFILE : null,
     });
   } else {
     rows.push({
