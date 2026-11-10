@@ -34,6 +34,14 @@ import { BASELINE, BASELINE_CAVEAT, type BaselineRow } from '../stats/baseline.j
 import type { StatsView } from '../stats/types.js';
 import { BarList, Ring } from './charts.js';
 
+/**
+ * 「打开配置文件」的结果（票 06）。
+ *
+ * 三种结局都是真的，都要给读者一句话：开成了、文件还没生成、
+ * 或者当前没有会话（右侧边栏按会话开标签，没会话无处可开）。
+ */
+export type ConfigOpenResult = 'opened' | 'missing' | 'no-session';
+
 /** 效率区块的读取状态。`unsupported` 与 `error` 对用户是同一句话，分开只为排查。 */
 export type StatsStatus = 'loading' | 'ready' | 'error';
 
@@ -92,6 +100,13 @@ export interface PonytailPanelProps {
   readonly resetMode: () => Promise<WriteOutcome>;
   /** 效率统计的读接口（04 定的 connection.rpc 通道）。 */
   readonly stats: StatsPanelPort;
+  /**
+   * 打开 Profile 补丁（票 06）。
+   *
+   * 可选：宿主没有右侧边栏、或当前不在会话里时 `index.ts` 不传，
+   * 卡头就不出现这个按钮——不留死按钮。
+   */
+  readonly openConfigFile?: (() => ConfigOpenResult) | undefined;
 }
 
 /** 四个档位在面板上的展示名。 */
@@ -422,6 +437,39 @@ function ModeCard(props: {
 }
 
 /**
+ * 诊断卡卡头唯一动作（票 06）：把 Profile 补丁开成右侧文档预览。
+ *
+ * **为什么只给「打开」、不给「复制路径」**：`cordis.patch.yml` 的绝对位置由
+ * 宿主决定（`DSH_HOME` 或 profile 目录下），客户端拿不到，服务端也没读过它——
+ * 复制一段猜出来的路径比没有按钮更糟。
+ *
+ * 补丁文件可能还不存在、当前也可能没有会话，所以 `open` 返回结果，按钮把
+ * 结果翻成一句话贴在下面：点了没反应是最糟的反馈。
+ * @param props - 打开回调。
+ * @returns 按钮与回执。
+ */
+function ConfigFileAction(props: { readonly open: () => ConfigOpenResult }): ReactNode {
+  const [note, setNote] = useState<string | null>(null);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, minWidth: 0 }}>
+      <Button variant="outline" size="sm" onClick={() => setNote(openNote(props.open()))}>
+        打开配置文件
+      </Button>
+      {note === null ? null : (
+        <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>{note}</span>
+      )}
+    </div>
+  );
+}
+
+/** 打开结果的人话：三种结局各说各的原因，别让读者自己猜。 */
+function openNote(result: ConfigOpenResult): string {
+  if (result === 'opened') return '已在右侧边栏打开。';
+  if (result === 'missing') return '补丁文件还没生成：先在面板里存一次档位。';
+  return '当前没有打开的会话，右侧边栏无处可放。';
+}
+
+/**
  * 诊断卡（票 03）：规则句 + 五态图例一行，下面是从上到下的三层步骤表格。
  *
  * 表格恒按 `diagnosis.rows` 的顺序画（env → patch → fallback），不筛掉没值的层——
@@ -430,10 +478,14 @@ function ModeCard(props: {
  * @param props - 诊断结论与是否紧凑。
  * @returns 诊断卡节点。
  */
-function DiagnosisCard(props: { readonly diagnosis: Diagnosis; readonly compact: boolean }): ReactNode {
-  const { diagnosis, compact } = props;
+function DiagnosisCard(props: {
+  readonly diagnosis: Diagnosis;
+  readonly compact: boolean;
+  readonly openConfigFile?: (() => ConfigOpenResult) | undefined;
+}): ReactNode {
+  const { diagnosis, compact, openConfigFile } = props;
   return (
-    <Card title="优先级诊断链" compact={compact}>
+    <Card title="优先级诊断链" action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
       <div
         style={{
           display: 'flex',
@@ -561,7 +613,11 @@ export function PonytailPanel(props: PonytailPanelProps): ReactNode {
         />
       ) : null}
 
-      <DiagnosisCard diagnosis={diagnosis} compact={compact} />
+      <DiagnosisCard
+        diagnosis={diagnosis}
+        compact={compact}
+        openConfigFile={props.openConfigFile}
+      />
 
       <EfficiencySection port={props.stats} compact={compact} />
     </div>

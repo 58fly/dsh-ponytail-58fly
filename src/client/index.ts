@@ -29,7 +29,14 @@ import { PLUGIN_ID } from '../l0/paths.js';
 import { coerceMode, type RuntimeMode } from '../l0/mode.js';
 import { describeError } from '../l0/errors.js';
 import type { StatsView } from '../stats/types.js';
-import { PonytailPanel, type PanelSnapshot, type StatsPanelPort, type StatsStatus, type WriteOutcome } from './panel.js';
+import {
+  PonytailPanel,
+  type ConfigOpenResult,
+  type PanelSnapshot,
+  type StatsPanelPort,
+  type StatsStatus,
+  type WriteOutcome,
+} from './panel.js';
 
 /**
  * 硬依赖只有 `slots`：它是这个文件唯一的注册目标。
@@ -67,6 +74,54 @@ const LOGGER_SCOPE = 'ponytail-58fly';
  * 面板停在错误态。同域名请求自带会话 cookie，`fetch` 就是最薄的正确契约。
  */
 const STATS_PATH = '/api/ponytail-stats/snapshot';
+
+/**
+ * `sidebarRight` 服务面里我们用到的部分（宿主的 `ISidebarRight`）。
+ *
+ * 只写 `openResource` 与 `mounted`：前者开资源，后者回答「现在有没有会话」。
+ * 其余成员（`openTab`、`closeTab`、`registerCloseHandler` …）面板不用，不声明就不会被误用。
+ */
+interface SidebarRightFace {
+  /** 当前挂载的会话 id；没有会话时为 `undefined`。 */
+  readonly mounted: { getSnapshot: () => string | undefined };
+  /** 把 `dsh-resource://…` 地址开成右侧标签；没有会话时抛错。 */
+  openResource: (address: string) => void;
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /**
+     * 右侧边栏导航服务（宿主 `@deepseek-ai/dsh-client-ui-sidebar-right` 的 client face）。
+     *
+     * 本仓不装那个包的类型，所以在这里补一条最小声明——和宿主各插件用
+     * `declare module '@deepseek-ai/cordis'` 合并 `Context` 的做法一致。
+     * 服务缺席时这里**没有**成员可读：只有当 `ctx.inject` 把它列进依赖，
+     * 回调里的 `scope` 才保证有这个成员。
+     */
+    sidebarRight: SidebarRightFace;
+  }
+}
+
+/** 面板里「打开配置文件」指向的文件：Profile 补丁本身。 */
+const PATCH_FILE = 'cordis.patch.yml';
+
+/**
+ * 与宿主 `dsh-util-workspace-path` 的 `encodeSegment` 同义：保留冒号（Windows 盘符）。
+ * @param segment - 一个路径段。
+ * @returns 编码后的段。
+ */
+function encodeSegment(segment: string): string {
+  return encodeURIComponent(segment).replace(/%3A/gi, ':');
+}
+
+/**
+ * 逐段编码 `/` 分隔的路径；宿主解析地址时会逐段解码。
+ * @param path - `/` 分隔的路径。
+ * @returns 编码后的路径。
+ */
+function encodePath(path: string): string {
+  return path.split('/').map(encodeSegment).join('/');
+}
 
 /** 清零用的载荷：字符串字面量，与服务端的 `isResetRequest` 对齐。 */
 const STATS_RESET = 'reset';
@@ -125,7 +180,12 @@ async function requestStats(transport: StatsTransport, payload: unknown): Promis
  * @param ctx - 客户端插件上下文（由宿主在装载 `lib/client.js` 时给）。
  */
 export function apply(ctx: Context): void {
-  const fiber = ctx.inject(['configForms'], (scope) => {
+  // `sidebarRight` 与 `uiSession` 只为票 06 的「打开配置文件」服务：它们缺席时
+  // 诊断卡的按钮整个不挂，其余面板照常——所以绝不能写进顶层 `inject`。
+  const fiber = ctx.inject(['configForms', 'sidebarRight'], (scope) => {
+    // 本仓不装 `dsh-client-ui-sidebar-right` 的类型包（它不是构建设置页的必要依赖），
+    // 所以这里按它 client face 的公共成员最小声明一次，而不是把整个包拉进 devDependencies。
+    const sidebarRight: SidebarRightFace = scope.sidebarRight;
     // 表单按宿主插件条目 id 取；命名空间就是它（见 dsh-settings 的 describe()）。
     const form = scope.configForms.get<PanelSnapshot>(PLUGIN_ID);
 
@@ -144,6 +204,26 @@ export function apply(ctx: Context): void {
       return accepted
         ? { ok: true, message: '已清除用户层覆盖，档位回落到继承值。' }
         : { ok: false, message: '宿主拒绝了这次清除：配置可能只读，或这个字段本来就没有用户层覆盖。' };
+    };
+
+    // 票 06：把 Profile 补丁开成右侧文档预览。地址按宿主的
+    // `dsh-util-workspace-path` 语法拼（`encodeSegment` 保留冒号给 Windows 盘符），
+    // 路径按会话工作目录相对写——绝对路径客户端算不出来。
+    //
+    // 会话 id 从 `sidebarRight.mounted` 取：`openResource` 内部用的就是同一个快照，
+    // 这里先取是为了在没会话时**不抛异常**，而是给出「没有会话」这个结果。
+    const openConfigFile = (): ConfigOpenResult => {
+      const sessionId = sidebarRight.mounted.getSnapshot();
+      if (sessionId === undefined) return 'no-session';
+      const address =
+        'dsh-resource://file/session/' + encodeSegment(sessionId) + '/' + encodePath(PATCH_FILE);
+      try {
+        sidebarRight.openResource(address);
+        return 'opened';
+      } catch (error: unknown) {
+        ctx.logger(LOGGER_SCOPE).warn('打开配置文件失败：' + describeError(error));
+        return 'missing';
+      }
     };
 
     // 统计通道：挂载时拉一次，之后只有用户点「刷新」才再拉。宿主的事件转发白名单
@@ -233,6 +313,7 @@ export function apply(ctx: Context): void {
                 writeMode,
                 resetMode,
                 stats: statsPort,
+                openConfigFile,
               }),
             },
             PonytailPanel,

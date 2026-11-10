@@ -35,7 +35,7 @@
 - **卡头只有一个动作位**（右上角），空着就什么都不放：
   - 档位卡：`清除用户层覆盖`（`Button variant="outline" size="sm"`）。
   - 效率卡：数据截至 + `刷新`。
-  - 诊断卡：没有。
+  - 诊断卡：`打开配置文件`（见 §4.1）。
 - 标题旁的 `?` 不算动作位：它挂在卡片标题（`Card.title` 收 `ReactNode`）里，与标题同行。
 - 卡头 `flexWrap`：紧凑时换行，宽栏下不换行。
 
@@ -81,6 +81,19 @@
 | unknown | 不可观测 | `info` |
 
 - 补丁被更高层盖住时，卡底补一句：`你改的补丁层正被 <来源> 盖住：面板写入的是补丁层，读到的生效值来自别处。`
+
+### 4.1 打开配置文件（票 06）
+
+- 卡头动作位就一个按钮：`打开配置文件`（`Button variant="outline" size="sm"`），
+  打开的是 Profile 补丁 `cordis.patch.yml`。
+- **只打开，不复制路径**：补丁文件的绝对位置由宿主决定（`DSH_HOME` 或 profile 目录下），
+  服务端也没读过它，客户端拼不出来。复制一个猜出来的路径比没有按钮更糟。
+- 实现走宿主的右侧边栏服务：`sidebarRight.openResource('dsh-resource://file/session/<sessionId>/cordis.patch.yml')`。
+  会话 id 从 `sidebarRight.mounted.getSnapshot()` 取，`encodeSegment` 保留冒号（Windows 盘符）。
+- 三种结局都要回一句话，贴在按钮下方（11px / 17px，`--dsw-alias-label-tertiary`）：
+  `已在右侧边栏打开。` / `补丁文件还没生成：先在面板里存一次档位。` / `当前没有打开的会话，右侧边栏无处可放。`
+- **服务缺席就不挂按钮**：`sidebarRight` 不在组合里时，`ctx.inject` 的子 fiber 起不来，
+  回调不传，面板返回 `null`。宁缺一个按钮，不留一个点了没反应的按钮。
 
 ## 5. 效率统计卡
 

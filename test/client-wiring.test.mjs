@@ -116,7 +116,7 @@ function fakeForm(options = {}) {
  * @param options - `forms` 为 null 表示这台部署没有 configForms 服务。
  */
 function fakeCtx(options = {}) {
-  const state = { deps: [], warnings: [], registered: [], slotInjectKeys: [], effects: [] };
+  const state = { deps: [], warnings: [], registered: [], slotInjectKeys: [], effects: [], opened: [] };
   const ctx = {
     inject(deps, callback) {
       state.deps.push(deps);
@@ -126,6 +126,14 @@ function fakeCtx(options = {}) {
       }
       const scope = {
         configForms: { get: (entryId) => (options.getFormsEntryId?.(entryId), options.forms) },
+        // 票 06：没有会话时 `mounted` 回 undefined，`openResource` 永远不该被叫到。
+        sidebarRight: {
+          mounted: { getSnapshot: () => options.sessionId },
+          openResource: (address) => {
+            state.opened.push(address);
+            if (options.sessionId === undefined) throw new Error('sidebarRight: no session surface is mounted');
+          },
+        },
         effect(factory, _label) {
           state.effects.push(factory);
           const disposer = factory();
@@ -170,8 +178,8 @@ test('configForms 缺席时一个槽位都不注册，也不抛错', async () =>
   await settle();
   assert.deepEqual(
     state.deps,
-    [['configForms']],
-    'configForms 必须走运行时 ctx.inject，不能进顶层 inject',
+    [['configForms', 'sidebarRight']],
+    'configForms 与 sidebarRight 必须走运行时 ctx.inject，不能进顶层 inject',
   );
   assert.deepEqual(state.slotInjectKeys, [], '服务缺席时不该去碰任何槽位');
   assert.deepEqual(state.registered, []);
