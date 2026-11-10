@@ -36,7 +36,15 @@ import {
   type DiagnosisLevel,
   type DiagnosisState,
 } from '../l0/diagnosis.js';
-import { BASELINE, BASELINE_CAVEAT, type BaselineRow } from '../stats/baseline.js';
+import {
+  BASELINE,
+  BASELINE_NO_ACTIVE,
+  baselineBasis,
+  projectSavings,
+  type BaselineRow,
+  type Estimate,
+  type SavingsProjection,
+} from '../stats/baseline.js';
 import type { StatsView } from '../stats/types.js';
 import { BarList, Ring } from './charts.js';
 
@@ -715,6 +723,27 @@ const EFF_VALUE_CELL: CSSProperties = {
 };
 
 /**
+ * 把 `projectSavings` 的绝对值还原成比例。
+ *
+ * `projectSavings` 乘过基数（`activeTurns × tokensPerTurn`），这里除回去，
+ * 才能说「约 -45%」；base 为 0 时三行根本不该画（见 `BASELINE_NO_ACTIVE`）。
+ * @param estimate - 投影的一行。
+ * @param base - 推算基数。
+ * @returns 比例形式的中心值与区间。
+ */
+function ratioOf(estimate: Estimate, base: number): BaselineRow {
+  const scale = (value: number | null): number | undefined =>
+    value === null || base === 0 ? undefined : value / base;
+  const from = scale(estimate.from);
+  const to = scale(estimate.to);
+  return {
+    center: base === 0 ? 0 : estimate.center / base,
+    range: from === undefined || to === undefined ? undefined : [from, to],
+    source: estimate.source,
+  };
+}
+
+/**
  * 基准推算三行 + 出处 + 限定语。
  *
  * 只出 outputTokens / cost / time（§6）：行数、gzip 面积归因不到本机这些轮次，
@@ -722,11 +751,11 @@ const EFF_VALUE_CELL: CSSProperties = {
  * 这里只做乘与格式化——把裸系数写进 JSX 就等于在 UI 里立了第二份真相。
  * @returns 三行定值表 + 页脚。
  */
-function BaselineRows(): ReactNode {
+function BaselineRows(props: { readonly projection: SavingsProjection; readonly base: number }): ReactNode {
   const rows: readonly { readonly label: string; readonly line: BaselineRow }[] = [
-    { label: '输出 token', line: BASELINE.outputTokens },
-    { label: '成本', line: BASELINE.cost },
-    { label: '耗时', line: BASELINE.time },
+    { label: '输出 token', line: ratioOf(props.projection.outputTokens, props.base) },
+    { label: '成本', line: ratioOf(props.projection.cost, props.base) },
+    { label: '耗时', line: ratioOf(props.projection.time, props.base) },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -830,6 +859,12 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
     switches: group(snapshot?.modeSwitches ?? 0),
     calls: group(snapshot?.commandCalls ?? 0),
   };
+
+  /* 基线推算与命令层同源：同一份 `projectSavings`，同一个分母（票 04 缺口 A/B）。 */
+  const projection = projectSavings(
+    snapshot ?? { managedTurns: 0, turnsByMode: { off: 0, lite: 0, full: 0, ultra: 0 } },
+  );
+  const base = projection.activeTurns * projection.tokensPerTurn;
 
   /* 卡头右端：数据截至早于刷新按钮（顺序由票 03 定），紧凑时按同一组换行。 */
   const action = (
@@ -947,8 +982,6 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
               <a href={BASELINE.outputTokens.source} target="_blank" rel="noreferrer" style={{ color: 'var(--dsw-alias-link)' }}>
                 方法论
               </a>
-              {' · '}
-              {BASELINE_CAVEAT}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <h4 style={{ margin: 0, fontSize: 12, lineHeight: '18px', fontWeight: 500, color: 'var(--dsw-alias-label-secondary)' }}>
@@ -956,7 +989,18 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
               </h4>
               <Tag tone="quiet">基准推算</Tag>
             </div>
-            <BaselineRows />
+            {projection.activeTurns === 0 ? (
+              <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
+                {BASELINE_NO_ACTIVE}
+              </span>
+            ) : (
+              <>
+                <BaselineRows projection={projection} base={base} />
+                <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
+                  {baselineBasis(projection.activeTurns, projection.tokensPerTurn)}
+                </span>
+              </>
+            )}
           </div>
         </>
       )}

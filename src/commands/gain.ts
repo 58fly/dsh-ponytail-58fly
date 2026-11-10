@@ -20,7 +20,14 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { RUNTIME_MODES } from '../l0/mode.js';
 import { describeError } from '../l0/errors.js';
-import { BASELINE, BASELINE_CAVEAT, projectSavings, type Estimate } from '../stats/baseline.js';
+import {
+  BASELINE,
+  BASELINE_CAVEAT,
+  BASELINE_NO_ACTIVE,
+  baselineBasis,
+  projectSavings,
+  type Estimate,
+} from '../stats/baseline.js';
 import type { StatsHandle } from '../stats/index.js';
 import type { StatsView } from '../stats/types.js';
 
@@ -147,9 +154,10 @@ function baselineBlock(managedTurns: number, offTurns: number): string[] {
   rows.push('  ' + renderBaselineRow('耗时', projection.time, base));
   rows.push('');
   rows.push(
-    projection.activeTurns === 0
-      ? '  还没有非 off 档位的轮次，所以没有可推算的量。'
-      : '  推算基数：' + group(projection.activeTurns) + ' 个非 off 轮次 × 每轮假定 ' + group(projection.tokensPerTurn) + ' 输出 token。',
+    '  ' +
+      (projection.activeTurns === 0
+        ? BASELINE_NO_ACTIVE
+        : baselineBasis(projection.activeTurns, projection.tokensPerTurn)),
   );
   rows.push('');
   rows.push('  基线：上游 39 任务 × 5 次 × 三臂，Claude Code + Opus 5.5');

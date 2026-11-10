@@ -44,6 +44,26 @@ export const BASELINE_CAVEAT = '这是上游基准，不是本机测量。';
 /** 单轮输出 token 的假设值：推算时的分母倍数，UI 必须显式写出来。 */
 export const ASSUMED_TOKENS_PER_TURN = 800;
 
+/** 没有非 off 轮次时的推算说明：分母为 0，三行百分比不成立。 */
+export const BASELINE_NO_ACTIVE = '还没有非 off 档位的轮次，所以没有可推算的量。';
+
+/**
+ * 推算基数那一句：面板与命令共用，改口径只改这里。
+ *
+ * 三行百分比的分母就是这个假设；不写出来，读者无法判读「约 -45%」。
+ * @param activeTurns - 参与推算的非 off 轮次。
+ * @param tokensPerTurn - 每轮假定的输出 token 数。
+ * @returns 一句人话。
+ */
+export function baselineBasis(activeTurns: number, tokensPerTurn: number = ASSUMED_TOKENS_PER_TURN): string {
+  return '推算基数：' + group(activeTurns) + ' 个非 off 轮次 × 每轮假定 ' + group(tokensPerTurn) + ' 输出 token。';
+}
+
+/** 千分位：面板与命令各自有一份同名函数，这里只要它够用。 */
+function group(value: number): string {
+  return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+
 /** 一行预估：中心值与区间，跟随 BASELINE 的形状。 */
 export interface Estimate {
   /** 中心估计。 */

@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { renderGain } from '../lib/commands/gain.js';
+import { BASELINE_NO_ACTIVE } from '../lib/stats/baseline.js';
 
 /** 造一份「已开始计数」的快照。 */
 function snapshot(overrides = {}) {
@@ -67,4 +68,10 @@ test('文案里不出现「你省了」这类可疑表述', async () => {
   const text = await readFile(new URL('../src/commands/gain.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(text, /你省了/);
   assert.doesNotMatch(text, /自动更新/);
+});
+
+test('没有非 off 轮次时只说「没有可推算的量」，不印约 0%', () => {
+  const text = renderGain(snapshot({ managedTurns: 10, turnsByMode: { off: 10, lite: 0, full: 0, ultra: 0 } }));
+  assert.ok(text.includes(BASELINE_NO_ACTIVE));
+  assert.doesNotMatch(text, /约 0%/);
 });
