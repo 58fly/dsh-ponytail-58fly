@@ -170,6 +170,28 @@ function overrideText(diagnosis: Diagnosis): string {
   return '无覆盖';
 }
 
+/**
+ * 卡底那句覆盖总结该说哪一种事实。
+ *
+ * 按**补丁层自己的状态**分支，不按 `overriddenBy`：后者只说「谁盖住了补丁层」，
+ * 补丁层压根没写值时会说成「你写的被盖住」，而用户其实没写过。
+ * @param diagnosis - `diagnose()` 的结论。
+ * @returns 一句话；补丁层既没被盖也没出问题时返回 `null`。
+ */
+function patchStory(diagnosis: Diagnosis): string | null {
+  const patchRow = diagnosis.rows.find((row) => row.level === 'patch');
+  if (patchRow === undefined) return null;
+  if (patchRow.state === 'shadowed') {
+    return diagnosis.overriddenBy === 'env'
+      ? '你写的补丁层正被环境变量盖住：面板写入的是补丁层，读到的生效值来自宿主进程。'
+      : '你写的补丁层正被更高优先级的补丁盖住：面板写入的是补丁层，读到的生效值来自别处。';
+  }
+  if (patchRow.state === 'invalid') {
+    return `你写的「${patchRow.value ?? UNSET_VALUE}」不是合法档位，已被忽略，生效值来自更低一层。`;
+  }
+  return null;
+}
+
 /** 诊断状态对应的 Tag 语气与中文说明。 */
 const STATE_TEXT: Readonly<Record<DiagnosisState, { tone: 'success' | 'warning' | 'danger' | 'quiet' | 'info'; text: string }>> = {
   hit: { tone: 'success', text: '生效' },
@@ -510,6 +532,7 @@ function DiagnosisCard(props: {
   readonly openConfigFile?: (() => ConfigOpenResult) | undefined;
 }): ReactNode {
   const { diagnosis, compact, openConfigFile } = props;
+  const story = patchStory(diagnosis);
   return (
     <Card title="优先级诊断链" action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
       <div
@@ -546,7 +569,7 @@ function DiagnosisCard(props: {
             const state = STATE_TEXT[row.state];
             return (
               <Fragment key={row.level}>
-                <tr>
+                <tr title={compact ? (row.note ?? undefined) : undefined}>
                   <td style={CELL_STYLE}>
                     <Tag tone={state.tone}>{state.text}</Tag>
                   </td>
@@ -573,11 +596,8 @@ function DiagnosisCard(props: {
         </tbody>
       </table>
 
-      {diagnosis.overriddenBy === null ? null : (
-        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-          你改的补丁层正被 <strong>{diagnosis.overriddenBy === 'env' ? '环境变量' : '更高优先级的补丁'}</strong>{' '}
-          盖住：面板写入的是补丁层，读到的生效值来自别处。
-        </p>
+      {story === null ? null : (
+        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>{story}</p>
       )}
     </Card>
   );

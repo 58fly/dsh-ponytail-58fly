@@ -16,6 +16,7 @@ import {
   DIAGNOSIS_FALLBACK_LOCATION,
   DIAGNOSIS_INVALID_PROBLEM,
   DIAGNOSIS_PATCH_LOCATION,
+  DIAGNOSIS_PATCH_SHADOWED,
   diagnose,
 } from '../lib/l0/diagnosis.js';
 import {
@@ -78,9 +79,17 @@ test('env 生效：生效值既不来自补丁也不来自兜底 → env 反推�
   const diagnosis = diagnose({ value: { defaultMode: 'ultra' } });
   assert.deepEqual(states(diagnosis), { env: 'hit', patch: 'absent', fallback: 'shadowed' });
   assert.equal(diagnosis.effective, 'ultra');
-  assert.equal(diagnosis.overriddenBy, 'env');
+  // 补丁层没写过值，就没有「被盖住的东西」：env 顶掉的是兜底，不该算成覆盖了补丁层。
+  assert.equal(diagnosis.overriddenBy, null);
   // 反推出来的一行必须自证是反推，不能让用户以为是读到了真值。
   assert.match(row(diagnosis, 'env').note, /反推/);
+});
+
+test('组合层写了值但被 env 顶掉：补丁行被覆盖，指出是 env 干的', () => {
+  const diagnosis = diagnose({ base: { defaultMode: 'lite' }, value: { defaultMode: 'ultra' } });
+  assert.deepEqual(states(diagnosis), { env: 'hit', patch: 'shadowed', fallback: 'shadowed' });
+  assert.equal(diagnosis.overriddenBy, 'env');
+  assert.equal(row(diagnosis, 'patch').note, DIAGNOSIS_PATCH_SHADOWED);
 });
 
 test('用户层写了 lite 但 env 把值顶到 ultra：补丁被覆盖，指出是 env 干的', () => {

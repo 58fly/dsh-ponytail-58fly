@@ -39,6 +39,9 @@ export const DIAGNOSIS_INVALID_PROBLEM = '值无效，已忽略';
  */
 export const DIAGNOSIS_PATCH_FROM_PROFILE = '这一值来自 profile 组合层，不是用户手写的。';
 
+/** 补丁层写了值但被更高优先级的层盖住时的注脚；面板据此写卡底的覆盖句。 */
+export const DIAGNOSIS_PATCH_SHADOWED = '这一层写了值，但被更高优先级的层盖住了。';
+
 /** 诊断链的层名，与服务端 `PriorityLevel` 取值域相同。 */
 export type DiagnosisLevel = 'env' | 'patch' | 'fallback';
 
@@ -210,7 +213,7 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
       location: LOCATIONS.patch,
       value: patchRaw,
       state: 'shadowed',
-      note: '这一层写了值，但被更高优先级的层盖住了。',
+      note: DIAGNOSIS_PATCH_SHADOWED,
     });
   }
 
@@ -242,6 +245,32 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
   return {
     rows,
     effective,
-    overriddenBy: envInferred ? 'env' : patchRaw !== null && patchMode !== effective ? 'patch' : null,
+    overriddenBy: overriddenBy(user, base, envInferred, patchMode, effective),
   };
+}
+
+/**
+ * 谁盖住了你写的那一层。
+ *
+ * 只按**补丁层自己的状态**答，不看 `effective` 归谁：补丁层被盖住就是被盖住，
+ * 哪怕用户层压根没写过值、生效值其实来自 env 顶掉的兜底——那种情况说出
+ * 「被环境变量覆盖」会多解释一层，读者会以为自己在补丁里写过东西。
+ * @param user - 用户层读出的值。
+ * @param base - 组合层读出的值。
+ * @param envInferred - env 是否被反推为命中。
+ * @param patchMode - 补丁层的有效档位（用户层优先，回落组合层）。
+ * @param effective - 最终生效档位。
+ * @returns 盖住补丁层的层名；没人盖就是 `null`。
+ */
+function overriddenBy(
+  user: FieldReading,
+  base: FieldReading,
+  envInferred: boolean,
+  patchMode: RuntimeMode | null,
+  effective: RuntimeMode,
+): DiagnosisLevel | null {
+  // 补丁层压根没写值：没有「被盖住的东西」，兜底被 env 顶掉也不该算到补丁层头上。
+  if (patchMode === null && (user.raw ?? base.raw) === null) return null;
+  if (envInferred) return 'env';
+  return patchMode !== effective ? 'patch' : null;
 }
