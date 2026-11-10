@@ -31,13 +31,13 @@ Offline or behind a firewall, install from a tarball:
 
 ```bash
 pnpm run build && npm pack
-dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.1.tgz
+dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.2.tgz
 ```
 
 Desktop app (Electron-owned profiles; `dsh plugin` refuses to write them):
 
 ```bash
-cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.1.tgz
+cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.2.tgz
 ```
 
 <h2 align="center"><sub>CORE</sub><br>What it does</h2>

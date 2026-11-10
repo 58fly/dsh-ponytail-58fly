@@ -31,13 +31,13 @@ dsh plugin --profile web add dsh-ponytail-58fly
 
 ```bash
 pnpm run build && npm pack
-dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.1.tgz
+dsh plugin --profile web add ./dsh-ponytail-58fly-0.3.2.tgz
 ```
 
 桌面版（Electron 独占的 profile，`dsh plugin` 会拒绝写入）：
 
 ```bash
-cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.1.tgz
+cd ~/.dsh/profiles/desktop && pnpm add /path/to/dsh-ponytail-58fly-0.3.2.tgz
 ```
 
 <h2 align="center"><sub>CORE</sub><br>它做了什么</h2>
