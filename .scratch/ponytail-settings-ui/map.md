@@ -1,6 +1,6 @@
 <!-- DSH-FORMAT: md-v1 -->
 <!-- DSH-TITLE: Ponytail 设置页 UI 重构：三卡片、五态图例、双表格与帮助提示 -->
-<!-- DSH-STATUS: ready-for-agent -->
+<!-- DSH-STATUS: closed -->
 <!-- DSH-LABELS: wayfinder:map -->
 <!-- DSH-IDEMPOTENCY-KEY: deck-e7bc5b72-5980661 -->
 <!-- DSH-CREATED: 2026-11-09T04:28:48.511Z -->
@@ -115,3 +115,21 @@
 - 2026-11-10 · 推进「诊断链卡」→ 已关（`208d2cf`）。四缺口由本人拍板：覆盖句按补丁层状态分支、非法值算覆盖但改说法、图例维持同行整体换行、紧凑备注补 title。顺手修掉一处真 bug：`overriddenBy` 在「补丁层没写过值 + env 顶掉兜底」时误报 `env`。检查：typecheck 0 / build 53997B / **272 pass**（哨兵 14→15）/ verify 通过。**剩下 04「效率统计卡」是唯一 frontier。**
 - 2026-11-10 · 推进「效率统计卡」→ 已关（`63e347c`）。六个待定项里四个由代码/文档已答；两处真缺口按本人拍板修：零轮次不画三行改印 `BASELINE_NO_ACTIVE`、三行之下补推算基数一行；另删块尾重复的 `BASELINE_CAVEAT`。基线文案收进 `stats/baseline.ts`，面板与命令首次同源。检查：typecheck 0 / build 56347B / **273 pass**（新增一条零投影断言）/ verify 通过 / check:skills 通过。**四张子票全部关闭，frontier 为空。**
 - 2026-11-10 · **完成核对并收口**：`3fb1aa0` 上重跑 typecheck 0 / build 56347B / 273 pass / verify 通过 / check:skills 通过；逐条核对四张票的结论都已成代码（`f32d07a`、`208d2cf`、`63e347c`、`6e1b102`），硬边界（`charts.tsx` 零改动、`Diagnosis` 契约三项、无新依赖、10b 组零命中）逐条实测。结论：不需要交棒，不生成规格、不拆票；三处雾按「决定不做（缺真机证据）」处置，结论写进 `## 探索结论`。地图关闭。
+
+## Comments
+
+### 2026-11-10 · 收口总结：探索完成，不交棒
+
+**结论与依据**：四张决策票的结论不是待施工的方案，而是已经在 `main` 上交付的代码——`f32d07a`（档位卡）、`208d2cf`（诊断链卡）、`63e347c`（效率统计卡），另有本图推进期间查清并单独落地的 `6e1b102`（打开配置文件入口）。因此不生成规格、不拆实施票。
+
+在 `3fb1aa0` 这棵树上实测的全量证据：`pnpm run typecheck` 退出 0；`pnpm run build` → `lib/client.js` 56347 bytes；`pnpm test` 273 pass / 0 fail；`pnpm run verify` 通过（32 源文件 / 117 产物 / 1 提醒）；`pnpm run check:skills` 通过（6 技能）。
+
+硬边界逐条实测：`src/client/charts.tsx` 自 `2994efe` 起零改动；`Diagnosis` 契约仍只有 `rows` / `effective` / `overriddenBy`；`package.json` 只变版本号 `0.3.0 → 0.3.1`，无新依赖；`verify` 第 10b 组（hex 色值与「实时」）零命中。
+
+四张票的答案（细节只在各自票里）：卡片壳与紧凑判据固化成共享件；档位卡长说明进 `HoverCard`、状态行压成一行并分辨「被覆盖 / 来自组合层 / 无覆盖」；诊断卡改三层步骤表，覆盖句改由补丁层自身状态驱动；效率卡改指标表，基线块与 `/ponytail-gain` 首次同源。
+
+**顺带修掉的两处真 bug**（图的副产品）：`overriddenBy` 在「补丁层没写过值、环境变量顶掉兜底」时误报覆盖；面板在零轮次时印「约 0%」，而真相是「没有可推算的轮次」。
+
+**留下的雾按「决定不做」处置**：紧凑模式（<480px）的肉眼效果、480px 阈值、触屏上的 `title` 兜底——三条都要真机，本会话没有浏览器通道，证据缺口如实记在 `## 探索结论`；要核对时属于新一轮核对，不必让这张图继续开着。
+
+核对与交接结论已写进正文 `## 探索结论`（提交 `e00da00`），本图按 wayfinder 规则关闭。
