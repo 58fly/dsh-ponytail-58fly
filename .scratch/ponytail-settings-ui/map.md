@@ -78,11 +78,14 @@
 ## Decisions so far
 
 - [卡片壳、紧凑宽度与接线测试桩](issues/01-卡片壳-紧凑宽度与接线测试桩.md)：卡片壳定死为 `CARD_STYLE` 一套参数（`bg-layer-2` / `0.5px border-l3` / `radius-md` / padding 12 / gap 12 / 卡头左标题右单一动作位），紧凑判据是 `useCompactWidth` 量**面板自身宽度**、阈值 480、取不到 `ResizeObserver` 即降级宽栏；接线测试桩不补测宽类全局，断言口径不扩（宿主无 jsdom）。`main@6e1b102` typecheck 退出 0、271 项测试全过。
+- [档位卡：分段单选、悬停帮助与单行状态行](issues/02-档位卡-分段单选-悬停帮助与单行状态行.md)：`?` 用 `HELP_TRIGGER` 圆钮包 `<HoverCard inline openDelayMs={200}>`，不占卡头唯一动作位；`MODE_HELP` 四行与 `skills/ponytail-help/SKILL.md:18-21` 逐字同源（**off 行是这次补进手册的**，此前只存在于优先级链段）；状态行改 `档位｜revision｜覆盖关系`，`overriddenBy === null` 时若补丁行命中且注脚来自组合层则写「来自 Profile 组合层」，不再一律说「无覆盖」。`f32d07a`：typecheck 0 / build 53209B / 271 pass / verify 通过。
+- [诊断链卡：规则行、五态图例与三层步骤表格](issues/03-诊断链卡-规则行-五态图例与三层步骤表格.md)：卡底覆盖句的判据从 `overriddenBy` 改成**补丁行自身状态**（`shadowed` 说「被盖住」、`invalid` 说「已被忽略」、其余不补句）——`overriddenBy` 只看生效值归属，用户层空、env 顶掉兜底时会说成「你改的补丁层被盖住」，那是假话；`diagnose()` 的返回契约未动，只在 `overriddenBy` 计算里加一条「补丁层没写过值就不报覆盖」，并导出 `DIAGNOSIS_PATCH_SHADOWED` 供面板判据复用（哨兵随之从 14 条变 15 条）。表格列宽 `5em | 40% | 5em | 余`，`td` 保持 `table-cell`，紧凑备注下移并挂 `tr title`。`208d2cf`：typecheck 0 / build 53997B / 272 pass / verify 通过。
 
 ## Not yet specified
 
 - 紧凑模式（<480px）在真实宿主里的肉眼效果没有证据：只有代码层判据（卡头 `flexWrap`、效率表折叠说明列、诊断备注下移），本会话没有浏览器通道取截图。等 02/03/04 都落地后，需要一次真机核对。
 - 480px 这个阈值本身没被数据校准过：它来自「设置页最窄能塞进多宽」的估计，没有实测侧栏最小宽度。
+- 紧凑模式下诊断行的 `title` 悬停兜底在触屏不可达（无 hover），是否值得为一句话改成长按或点击展开，等真机核对时一并决定。
 
 ## Out of scope
 
@@ -90,3 +93,5 @@
 
 - 2026-11-10 · 修面板 0/0：`issues/` 目录此前根本没建，四条子题从未创建（不是关联丢失）。现按地图 Destination 与「实现要点」的四个实施面重建为 01–04，文件头写 `DSH-PARENT: 00`，正文首节即为 `## 子题` 清单（条数与子票数一致，四条都指向真实文件）。阻塞边 02←01、03←01、04←01 用 `deck_map_link` 写入。**01 现在是唯一的 frontier。**
 - 2026-11-10 · 推进「卡片壳、紧凑宽度与接线测试桩」→ 已关。核对发现三项决策已有代码承载（`src/client/panel.tsx:164-205` 的宽度判据、`:219-268` 的卡片壳、`test/client-wiring.test.mjs:34-53` 的桩面），本次只做取证与实测（typecheck 0 / 271 pass），未改代码。下一步：02 / 03 / 04 同时变可接（并列取号最小者 = 02「档位卡」）。
+- 2026-11-10 · 推进「档位卡」→ 已关（`f32d07a`）。四缺口由本人拍板：补技能手册 off 行、面板读补丁行注脚判组合层、回执留正文末、分隔符改全角竖线。检查：typecheck 0 / build 53209B / 271 pass / verify 通过 / check:skills 通过。
+- 2026-11-10 · 推进「诊断链卡」→ 已关（`208d2cf`）。四缺口由本人拍板：覆盖句按补丁层状态分支、非法值算覆盖但改说法、图例维持同行整体换行、紧凑备注补 title。顺手修掉一处真 bug：`overriddenBy` 在「补丁层没写过值 + env 顶掉兜底」时误报 `env`。检查：typecheck 0 / build 53997B / **272 pass**（哨兵 14→15）/ verify 通过。**剩下 04「效率统计卡」是唯一 frontier。**
