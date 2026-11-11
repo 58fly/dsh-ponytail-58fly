@@ -38,7 +38,7 @@ const outfile = join(root, 'lib', 'client.js');
  * 相对 import 都会炸）。纯模块没有这个包袱，单独出一份就能被 `node --test`
  * 直接测——归因是这次改造唯一的纯逻辑，值得这条通道。
  */
-const PURE_MODULES = ['attribution.ts'];
+const PURE_MODULES = ['attribution.ts', 'mini.ts'];
 
 /**
  * 宿主页面提供（`dsh-web-frontend` 的 staticModules）的模块，必须 external。

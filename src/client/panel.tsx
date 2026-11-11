@@ -26,13 +26,10 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { Button, HoverCard, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, HoverCard, Menu, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
 import { DIAGNOSIS_PATCH_FROM_PROFILE, diagnose, type Diagnosis, type DiagnosisLevel } from '../l0/diagnosis.js';
 import {
-  BASELINE,
-  BASELINE_NO_ACTIVE,
-  baselineBasis,
   projectSavings,
   type BaselineRow,
   type Estimate,
@@ -40,7 +37,8 @@ import {
 } from '../stats/baseline.js';
 import type { StatsView } from '../stats/types.js';
 import { attribute, type Attribution, type AttributionLevel, type AttributionState } from './attribution.js';
-import { BarList, Ring } from './charts.js';
+import { Ring } from './charts.js';
+import { BAND_MAX, BAND_MIN, axisPercent, bandRow, modeSlices, type BandRow } from './mini.js';
 
 /**
  * 「打开配置文件」的结果（票 06）。
@@ -304,21 +302,6 @@ const HELP_TRIGGER: CSSProperties = {
 
 /** 状态行里的一项：等宽、可换行但不撑破卡片。 */
 const STATUS_FACT: CSSProperties = { fontFamily: 'var(--dsw-font-mono)', minWidth: 0, overflowWrap: 'anywhere' };
-
-/** 表格的公共骨架：`fixed` 布局 + 不给 `minWidth`，长路径才不会把卡撑出横向滚动条。 */
-const TABLE_STYLE: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' };
-
-/** 表头/单元格共用的排版：`minWidth: 0` 让固定布局真的压住内容。 */
-const CELL_STYLE: CSSProperties = {
-  padding: '4px 8px 4px 0',
-  textAlign: 'left',
-  verticalAlign: 'top',
-  fontSize: 12,
-  lineHeight: '18px',
-  minWidth: 0,
-  borderTop: '0.5px solid var(--dsw-alias-border-l3)',
-  color: 'var(--dsw-alias-label-secondary)',
-};
 
 /**
  * 档位卡（票 02）：分段单选 + 标题旁 `?` 完整对照 + 单行状态行 + 卡头右侧清除按钮。
@@ -626,7 +609,7 @@ function DiagnosisCard(props: {
   return (
     <Card title="优先级诊断链" action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
       {/*
-        用 `role="group"` 而不是 `role="img"`：`img` 会把子树整体从无障碍树里
+        用 group 而不是 img 这个角色：它会把子树整体从无障碍树里
         换掉，层名与值就读不到了，而「配置文件写了 lite 没赢」正是这张卡最想
         说的那句话。每层自己带一句 aria-label，读屏逐层念出来。
       */}
@@ -726,20 +709,16 @@ export function PonytailPanel(props: PonytailPanelProps): ReactNode {
   );
 }
 
-/** 效率区块的文案：全部来自 `docs/design/ponytail-efficiency-ui.md` §7，逐字照抄。 */
+/** 效率区块仅剩的三句话：三态两句话 + 清零回执。其余口径文案全部收进 `?`（票 03）。 */
 const STATS_TEXT = {
   loading: '正在读取统计…',
-  emptyTitle: '本机运行期累计：还没开始计数',
-  emptyBody: '发一条消息就会开始记：每个经过 Ponytail pre-step 的轮次都算一次。',
   unreadable: '统计暂时读不到（宿主没提供这个通道，或插件刚重启）。',
   resetting: '正在清零…',
   resetDone: '已清零，从 0 重新计数。',
-  baselineTitle: '比没用 ponytail 的情况（基准推算）',
-  baselineNote: '基线：上游 39 任务 × 5 次 × 三臂，Claude Code + Opus 5.5',
+  empty: '还没有非 off 档位的轮次，所以没有可推算的量。',
+  /** 卡底唯一保留的一行：基准的限定语，不许省。 */
+  baselineCaveat: '上游基准，非本机测量',
 };
-
-/** 四个档位在按档位分布里的标签（与命令同一套名字，不加中文后缀：宽度只有 36px）。 */
-const BAR_LABEL: Readonly<Record<RuntimeMode, string>> = { off: 'off', lite: 'lite', full: 'full', ultra: 'ultra' };
 
 /** 千分位。 */
 function group(value: number): string {
@@ -759,15 +738,69 @@ function clockOf(epochMs: number): string {
   return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
 }
 
-/** 效率表格的数值列：等宽、右对齐，数字才能按位对上。 */
-const EFF_VALUE_CELL: CSSProperties = {
-  ...CELL_STYLE,
-  width: '7em',
+/** 卡头 `⋯` 菜单锚点：比 `?` 宽一档，两个点加省略号才不挤。 */
+const MENU_TRIGGER: CSSProperties = {
+  ...HELP_TRIGGER,
+  width: 22,
+  cursor: 'pointer',
+  color: 'var(--dsw-alias-label-secondary)',
+};
+
+/** 主数字：这一页最大的字，受管轮次就是这张卡的主语。 */
+const PRIMARY_NUMBER: CSSProperties = {
   fontFamily: 'var(--dsw-font-mono)',
-  textAlign: 'right',
-  whiteSpace: 'nowrap',
+  fontWeight: 600,
+  fontSize: 30,
+  lineHeight: '34px',
   color: 'var(--dsw-alias-label-primary)',
   fontVariantNumeric: 'tabular-nums',
+};
+
+/** 主数字在紧凑宽度下只缩一点点：它是这张卡的锚，缩狠了就失去「主」的意思。 */
+const PRIMARY_NUMBER_COMPACT: CSSProperties = { ...PRIMARY_NUMBER, fontSize: 26, lineHeight: '30px' };
+
+/** 图形下的 mono 小字：图例、杂项、行名共用同一套。 */
+const MONO_LINE: CSSProperties = {
+  fontFamily: 'var(--dsw-font-mono)',
+  fontSize: 11,
+  lineHeight: '17px',
+  color: 'var(--dsw-alias-label-tertiary)',
+  fontVariantNumeric: 'tabular-nums',
+};
+
+/** 四档堆叠条：细长一条，段与段之间不留缝（无缝才读得出「一整份轮次被切开」）。 */
+const STACK_TRACK: CSSProperties = {
+  display: 'flex',
+  width: '100%',
+  height: 10,
+  minWidth: 0,
+  borderRadius: 'var(--dsw-radius-sm)',
+  overflow: 'hidden',
+  // 轨道底用更浅的一层，`off` 段才分得出来——两者都是灰，同色就等于没画。
+  background: 'var(--dsw-alias-bg-layer-3)',
+};
+
+/** 区间条的每一行：行名固定 40px，三条共轴的关键。 */
+const BAND_ROW: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  minWidth: 0,
+};
+
+/** 区间条的横槽：条居中放在里面，比例位置由 inline 的 left/width 决定。 */
+const BAND_TRACK: CSSProperties = {
+  position: 'relative',
+  flex: 1,
+  minWidth: 0,
+  height: 14,
+};
+
+/** 轴刻度：`−60%` 与 `0` 两端各一个，字号压到最小，不当正文读。 */
+const AXIS_TICK: CSSProperties = {
+  ...MONO_LINE,
+  fontSize: 10,
+  lineHeight: '14px',
 };
 
 /**
@@ -792,94 +825,145 @@ function ratioOf(estimate: Estimate, base: number): BaselineRow {
 }
 
 /**
- * 基准推算三行 + 出处 + 限定语。
+ * 四档堆叠条。
  *
- * 只出 outputTokens / cost / time（§6）：行数、gzip 面积归因不到本机这些轮次，
- * 轮次与「多少任务更便宜」是基准自己的统计量。系数从 `baseline.ts` 读，
- * 这里只做乘与格式化——把裸系数写进 JSX 就等于在 UI 里立了第二份真相。
- * @returns 三行定值表 + 页脚。
+ * 段的顺序、颜色深浅都固定：`off` 用边框灰（它不是 ponytail 管的），其余三档
+ * 同一个业务色、透明度依次加深。图例那行 mono 小字就是这张图唯一的说明。
+ * @param props - 每档轮次。
+ * @returns 堆叠条 + 图例。
  */
-function BaselineRows(props: { readonly projection: SavingsProjection; readonly base: number }): ReactNode {
-  const rows: readonly { readonly label: string; readonly line: BaselineRow }[] = [
-    { label: '输出 token', line: ratioOf(props.projection.outputTokens, props.base) },
-    { label: '成本', line: ratioOf(props.projection.cost, props.base) },
-    { label: '耗时', line: ratioOf(props.projection.time, props.base) },
-  ];
+function ModeStack(props: { readonly turns: Readonly<Record<RuntimeMode, number>> }): ReactNode {
+  const slices = modeSlices(props.turns);
+  const opacity: Readonly<Record<RuntimeMode, number>> = { off: 1, lite: 0.32, full: 0.62, ultra: 1 };
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {rows.map((row) => {
-        const span = row.line.range;
-        const range =
-          span === undefined ? '（无区间）' : '[' + String(Math.round(span[0] * 100)) + '%, ' + String(Math.round(span[1] * 100)) + '%]';
-        return (
-          <div key={row.label} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 }}>
-            <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)', minWidth: 72 }}>
-              {row.label}
-            </span>
-            <span
-              style={{
-                fontSize: 14,
-                lineHeight: '22px',
-                fontWeight: 500,
-                color: 'var(--dsw-alias-label-primary)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {'约 ' + String(Math.round(row.line.center * 100)) + '%'}
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                lineHeight: '17px',
-                color: 'var(--dsw-alias-label-tertiary)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {range}
-            </span>
-          </div>
-        );
-      })}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+      <div style={STACK_TRACK} role="img" aria-label={'档位分布：' + modeLegend(props.turns)}>
+        {slices.length === 0 ? null : (
+          slices
+            .filter((slice) => slice.share > 0)
+            .map((slice) => (
+              <span
+                key={slice.mode}
+                style={{
+                  // flex-basis 而不是 width：段是 flex 子项，`width` 在行内元素上不生效。
+                  flex: '0 0 ' + String(slice.share) + '%',
+                  height: '100%',
+                  background:
+                    slice.mode === 'off' ? 'var(--dsw-alias-border-l3)' : 'var(--dsw-alias-state-business-primary)',
+                  opacity: slice.mode === 'off' ? 1 : opacity[slice.mode],
+                }}
+              />
+            ))
+        )}
+      </div>
+      <span style={MONO_LINE}>{modeLegend(props.turns)}</span>
     </div>
   );
 }
 
-/** 效率卡五个指标的说明文案：取自旧 `Metric` 的 hint，一字未改口径。 */
-const EFFICIENCY_ROWS: readonly { readonly key: string; readonly label: string; readonly hint: string }[] = [
-  { key: 'turns', label: '受管轮次', hint: '每个经过 Ponytail pre-step 的轮次都算一次' },
-  { key: 'injections', label: '注入次数', hint: '每轮拼进上下文的注入，次数不是字节' },
-  { key: 'bytes', label: '注入字节', hint: '注入文本的累计大小，与注入次数不是一回事' },
-  { key: 'switches', label: '切档次数', hint: '本机运行期里档位被切换的次数' },
-  { key: 'calls', label: '命令调用次数', hint: '本机运行期里 slash 命令被调用的次数' },
-];
-
-/** 基线提示块：二级底 + 左侧 2px 警告竖条 + 12px 内边距。 */
-const CALLOUT_STYLE: CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-  padding: 12,
-  minWidth: 0,
-  background: 'var(--dsw-alias-bg-layer-2)',
-  borderLeft: '2px solid var(--dsw-alias-state-warn-primary)',
-  borderRadius: 'var(--dsw-radius-sm)',
-};
+/** 图例一行：`off 12 · lite 38 · full 71 · ultra 7`，同时充当堆叠条的读屏文字。 */
+function modeLegend(turns: Readonly<Record<RuntimeMode, number>>): string {
+  return RUNTIME_MODES.map((mode) => mode + ' ' + group(turns[mode])).join(' · ');
+}
 
 /**
- * 「效率统计」区块（票 04；卡片壳与紧凑宽度见票 01）。
+ * 三行共轴区间条。
  *
- * 三种状态各有各的说法：空态是正常的（还没开始计数），读不到是异常的（通道没了），
- * 两者都用一句完整的话，不用感叹号也不用警告三角（§7）。
+ * 三行共用一条 `−60% … 0` 的轴，条形落在区间上、中心用小竖标线钉住。
+ * 轴两端写死（`mini.ts` 的 `BAND_MIN/BAND_MAX`）：轴若跟着数据缩放，
+ * 三行之间就没法比长短。
+ * @param props - 投影、基数与是否紧凑。
+ * @returns 三行条 + 一条轴刻度。
+ */
+function SavingsBands(props: { readonly projection: SavingsProjection; readonly base: number }): ReactNode {
+  const rows: readonly BandRow[] = [
+    bandRow('输出', ratioOf(props.projection.outputTokens, props.base).center, rangeOf(props.projection.outputTokens, props.base)),
+    bandRow('成本', ratioOf(props.projection.cost, props.base).center, rangeOf(props.projection.cost, props.base)),
+    bandRow('耗时', ratioOf(props.projection.time, props.base).center, rangeOf(props.projection.time, props.base)),
+  ];
+  const zero = axisPercent(0);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+      <div role="img" aria-label={'基准推算：' + rows.map(bandLabel).join('；')}>
+        {rows.map((row) => (
+          <div key={row.label} style={BAND_ROW}>
+            <span style={{ ...MONO_LINE, width: 32, flex: '0 0 32px' }}>{row.label}</span>
+            <div style={BAND_TRACK}>
+              {row.band === null ? null : (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 5,
+                    height: 4,
+                    left: String(row.band[0]) + '%',
+                    width: String(row.band[1] - row.band[0]) + '%',
+                    background: 'var(--dsw-alias-state-business-primary)',
+                    opacity: 0.45,
+                    borderRadius: 2,
+                  }}
+                />
+              )}
+              <span
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  height: 14,
+                  left: String(row.center) + '%',
+                  width: 2,
+                  marginLeft: -1,
+                  background: 'var(--dsw-alias-label-secondary)',
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* 轴刻度压在条下面同一列：左端 −60%、右端 0，中间不画刻度线（三条共用一条轴，画线是噪音）。 */}
+      <div style={{ ...BAND_ROW, alignItems: 'baseline' }}>
+        <span style={{ width: 32, flex: '0 0 32px' }} />
+        <div style={{ position: 'relative', flex: 1, minWidth: 0, height: 14 }}>
+          <span style={{ ...AXIS_TICK, position: 'absolute', left: 0 }}>{String(BAND_MIN) + '%'}</span>
+          <span style={{ ...AXIS_TICK, position: 'absolute', left: String(zero) + '%', marginLeft: -6 }}>
+            {String(BAND_MAX) + '%'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** 一行的区间，还原到比例域；缺区间时给 `null`。 */
+function rangeOf(estimate: Estimate, base: number): readonly [number, number] | null {
+  const line = ratioOf(estimate, base);
+  return line.range === undefined ? null : [line.range[0], line.range[1]];
+}
+
+/** 区间条一行的读屏文字：`成本 -36% 到 -16%`。 */
+function bandLabel(row: BandRow): string {
+  if (row.band === null) return row.label + ' ' + axisText(row.center);
+  return row.label + ' ' + axisText(row.band[0]) + ' 到 ' + axisText(row.band[1]);
+}
+
+/** 轴坐标还原成百分比文字，只给 aria 用。 */
+function axisText(percent: number): string {
+  return String(Math.round(BAND_MIN + (percent / 100) * (BAND_MAX - BAND_MIN))) + '%';
+}
+
+/**
+ * 「效率统计」区块（票 04 建卡，票 02 改四块图形）。
  *
- * 主体是「指标｜数值｜说明/图形」表格，只有五行指标；注入率与按档位分布的图
- * 是表格下方的「标签 + 图形」块（Ring 是 SVG、BarList 是 div，塞不进 tr/td）。
- * `compact` 只折叠说明列——说明文字改挂到整行的 `title` 上，悬停任意位置都能看到。
+ * 四块自上而下：主数字 + 注入率环 → 四档堆叠条 + mono 图例 → 杂项一行 →
+ * 三行共轴区间条。卡面只留图形与数字，口径文案由票 03 收进 `?`；卡底只剩
+ * 基准的限定语一行。
+ *
+ * `清零统计` 挪进卡头 `⋯` 菜单，菜单内仍是二次确认（单击绝不生效）。
  * @param props - 读接口与是否紧凑。
  * @returns 区块节点。
  */
 function EfficiencySection(props: { readonly port: StatsPanelPort; readonly compact: boolean }): ReactNode {
   const [resetting, setResetting] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
 
   const doReset = async (): Promise<void> => {
@@ -896,17 +980,7 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
   };
 
   const snapshot = props.port.snapshot;
-  const empty = snapshot === null || snapshot.managedTurns === 0;
   const compact = props.compact;
-
-  /* 指标行的数值：与旧 Metric 的数值同源，只换了排布。 */
-  const values: Readonly<Record<string, string>> = {
-    turns: group(snapshot?.managedTurns ?? 0),
-    injections: group(snapshot?.injections ?? 0),
-    bytes: formatBytes(snapshot?.injectedBytes ?? 0),
-    switches: group(snapshot?.modeSwitches ?? 0),
-    calls: group(snapshot?.commandCalls ?? 0),
-  };
 
   /* 基线推算与命令层同源：同一份 `projectSavings`，同一个分母（票 04 缺口 A/B）。 */
   const projection = projectSavings(
@@ -914,7 +988,14 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
   );
   const base = projection.activeTurns * projection.tokensPerTurn;
 
-  /* 卡头右端：数据截至早于刷新按钮（顺序由票 03 定），紧凑时按同一组换行。 */
+  /* 杂项一行：三个量、一句 mono 小字，各自不再占一行。 */
+  const misc = [
+    formatBytes(snapshot?.injectedBytes ?? 0),
+    group(snapshot?.modeSwitches ?? 0) + ' 切档',
+    group(snapshot?.commandCalls ?? 0) + ' 命令',
+  ].join(' · ');
+
+  /* 卡头右端：清零进 ⋯ 菜单（票 02），数据截至与刷新留在明面上。 */
   const action = (
     <>
       {snapshot === null || snapshot.lastAt === null ? null : (
@@ -925,15 +1006,37 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
       <Button variant="outline" size="sm" disabled={props.port.status === 'loading'} onClick={props.port.refresh}>
         刷新
       </Button>
+      {/* 菜单锚点写在 Menu 的 anchor 里，菜单项只有一个「清零统计」——它必须再点一次「清零」才生效。 */}
+      <Menu
+        open={menuOpen}
+        align="end"
+        side="bottom"
+        anchor={(
+          <button
+            type="button"
+            aria-label="更多操作"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            style={MENU_TRIGGER}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            ⋯
+          </button>
+        )}
+        items={[{ id: 'clear', label: resetting ? STATS_TEXT.resetting : '清零统计', disabled: resetting || confirming }]}
+        onSelect={() => {
+          setMenuOpen(false);
+          setConfirming(true);
+        }}
+        onClose={() => setMenuOpen(false)}
+      />
     </>
   );
 
   return (
     <Card title="效率统计" action={action} compact={compact}>
       {props.port.status === 'loading' && snapshot === null ? (
-        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-          {STATS_TEXT.loading}
-        </p>
+        <p style={{ margin: 0, ...MONO_LINE }}>{STATS_TEXT.loading}</p>
       ) : null}
 
       {props.port.status === 'error' ? (
@@ -956,136 +1059,62 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
         </p>
       ) : null}
 
+      {/* 二次确认：菜单项点过之后才出现，写在卡头下方一行，不弹模态。 */}
+      {confirming ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 12, lineHeight: '18px' }}>清零本机统计？</strong>
+          <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
+            受管轮次、注入次数、注入字节、切档次数和命令调用次数都会归零，无法撤销。配置和档位不受影响。
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setConfirming(false)}>
+            取消
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void doReset();
+            }}
+          >
+            清零
+          </Button>
+        </div>
+      ) : null}
+
+      {resetFeedback === null ? null : (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <Tag tone={resetFeedback === STATS_TEXT.resetDone ? 'success' : 'danger'}>
+            {resetFeedback === STATS_TEXT.resetDone ? '已清零' : '未清零'}
+          </Tag>
+          <span style={{ fontSize: 12, lineHeight: '18px' }}>{resetFeedback}</span>
+        </span>
+      )}
+
       {snapshot === null ? null : (
         <>
-          <table style={TABLE_STYLE}>
-            <thead>
-              <tr>
-                <th style={{ ...CELL_STYLE, borderTop: 'none' }}>指标</th>
-                <th style={{ ...EFF_VALUE_CELL, borderTop: 'none' }}>数值</th>
-                <th style={{ ...CELL_STYLE, borderTop: 'none' }}>说明/图形</th>
-              </tr>
-            </thead>
-            <tbody>
-              {EFFICIENCY_ROWS.map((row) => (
-                <tr key={row.key} title={compact ? row.hint : undefined}>
-                  <td style={CELL_STYLE}>{row.label}</td>
-                  <td style={EFF_VALUE_CELL}>{values[row.key]}</td>
-                  {compact ? null : <td style={CELL_STYLE}>{row.hint}</td>}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {empty ? (
-            <>
-              <p style={{ margin: 0, fontSize: 14, lineHeight: '22px', fontWeight: 500, color: 'var(--dsw-alias-label-primary)' }}>
-                {STATS_TEXT.emptyTitle}
-              </p>
-              <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-                {STATS_TEXT.emptyBody}
-              </p>
-            </>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <Ring value={snapshot.injections} total={snapshot.managedTurns} label="注入率" />
-                <span
-                  title={compact ? '注入次数 / 受管轮次' : undefined}
-                  style={{ display: 'inline-flex', flexDirection: 'column', gap: 2, minWidth: 0 }}
-                >
-                  <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>注入率</span>
-                  <span style={{ fontFamily: 'var(--dsw-font-mono)', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {group(snapshot.injections) + ' / ' + group(snapshot.managedTurns)}
-                  </span>
-                  {compact ? null : (
-                    <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
-                      注入次数 / 受管轮次
-                    </span>
-                  )}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
-                <span
-                  title={compact ? '按档位分布（受管轮次）' : undefined}
-                  style={{ flex: '0 0 72px', fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}
-                >
-                  按档位分布
-                </span>
-                <BarList
-                  label="按档位分布（受管轮次）"
-                  rows={RUNTIME_MODES.map((mode) => ({ key: mode, label: BAR_LABEL[mode], value: snapshot.turnsByMode[mode] }))}
-                />
-              </div>
-            </div>
-          )}
-
-          <div style={CALLOUT_STYLE}>
-            <strong style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-primary)' }}>
-              这是上游基准，不是本机测量
-            </strong>
-            <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
-              {STATS_TEXT.baselineNote}
-              {' · '}
-              <a href={BASELINE.outputTokens.source} target="_blank" rel="noreferrer" style={{ color: 'var(--dsw-alias-link)' }}>
-                方法论
-              </a>
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <h4 style={{ margin: 0, fontSize: 12, lineHeight: '18px', fontWeight: 500, color: 'var(--dsw-alias-label-secondary)' }}>
-                {STATS_TEXT.baselineTitle}
-              </h4>
-              <Tag tone="quiet">基准推算</Tag>
-            </div>
-            {projection.activeTurns === 0 ? (
-              <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
-                {BASELINE_NO_ACTIVE}
-              </span>
-            ) : (
-              <>
-                <BaselineRows projection={projection} base={base} />
-                <span style={{ fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-tertiary)' }}>
-                  {baselineBasis(projection.activeTurns, projection.tokensPerTurn)}
-                </span>
-              </>
-            )}
+          {/* ① 主数字 + 注入率环。空态时主数字仍是 0，不换成一句话——0 也是真的。 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', minWidth: 0 }}>
+            <span style={compact ? PRIMARY_NUMBER_COMPACT : PRIMARY_NUMBER}>{group(snapshot.managedTurns)}</span>
+            <Ring value={snapshot.injections} total={snapshot.managedTurns} label="注入率" />
           </div>
+
+          {/* ② 四档堆叠条 + 一行 mono 图例。 */}
+          <ModeStack turns={snapshot.turnsByMode} />
+
+          {/* ③ 杂项压成一行。 */}
+          <span style={MONO_LINE}>{misc}</span>
+
+          {/* ④ 三行共轴区间条。 */}
+          {projection.activeTurns === 0 ? (
+            <span style={{ ...MONO_LINE, color: 'var(--dsw-alias-label-tertiary)' }}>{STATS_TEXT.empty}</span>
+          ) : (
+            <SavingsBands projection={projection} base={base} />
+          )}
         </>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
-        <Button variant="outline" size="sm" disabled={resetting || confirming} onClick={() => setConfirming(true)}>
-          {resetting ? STATS_TEXT.resetting : '清零统计'}
-        </Button>
-        {confirming ? (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <strong style={{ fontSize: 12, lineHeight: '18px' }}>清零本机统计？</strong>
-            <span style={{ fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>
-              受管轮次、注入次数、注入字节、切档次数和命令调用次数都会归零，无法撤销。配置和档位不受影响。
-            </span>
-            <Button variant="outline" size="sm" onClick={() => setConfirming(false)}>
-              取消
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                void doReset();
-              }}
-            >
-              清零
-            </Button>
-          </span>
-        ) : null}
-        {resetFeedback === null ? null : (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <Tag tone={resetFeedback === STATS_TEXT.resetDone ? 'success' : 'danger'}>
-              {resetFeedback === STATS_TEXT.resetDone ? '已清零' : '未清零'}
-            </Tag>
-            <span style={{ fontSize: 12, lineHeight: '18px' }}>{resetFeedback}</span>
-          </span>
-        )}
-      </div>
+      {/* 卡底唯一一行：基准的限定语。口径、出处、推算基数都留给票 03 的 `?`。 */}
+      {snapshot === null ? null : <span style={MONO_LINE}>{STATS_TEXT.baselineCaveat}</span>}
     </Card>
   );
 }

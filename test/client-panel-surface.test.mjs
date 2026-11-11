@@ -48,7 +48,14 @@ test('管道容器带 role="group" 与说全三层结局的 aria-label', () => {
   // `role="img"` 会把子树从无障碍树里换掉，层名与值就读不到了。
   assert.match(panel, /role="group"/);
   // 注释里还会提到 role="img" 为什么被换掉，只禁真正的 JSX 属性。
-  assert.doesNotMatch(panel, /role="img"\s/);
+  // 效率卡的两处图（堆叠条、区间条）是纯图形容器，用 img 角色是对的；管道容器不许用。
+  // 右边界取管道容器的闭合（第一个 `</div>`）：整段卡片 JSX 到此为止。
+  // 不能用「到效率区块函数定义为止」——那中间横跨了两张卡的整个实现。
+  const start = panel.indexOf('<div role="group"');
+  const end = panel.indexOf('</div>', start);
+  assert.ok(start > 0 && end > start, '找不到管道容器到效率区块之间的片段');
+  const pipe = panel.slice(start, end);
+  assert.doesNotMatch(pipe, /role="img"\s/);
   assert.match(panel, /取值顺序\$\{order\}/);
   assert.match(panel, /没赢/);
   assert.match(panel, /不是有效档位/);

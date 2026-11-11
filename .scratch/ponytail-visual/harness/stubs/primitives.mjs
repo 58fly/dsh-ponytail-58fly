@@ -50,3 +50,15 @@ export function HoverCard({ anchor, content, inline }) {
     open ? h('span', { 'data-hovercard': '1' }, content) : null,
   );
 }
+
+/** Menu：只画锚点与（开着时的）条目列表。原型里不点菜单，够看排版即可。 */
+export function Menu({ open, anchor, items }) {
+  return h(
+    'span',
+    { 'data-menu': open ? 'open' : 'closed' },
+    anchor,
+    open && items
+      ? h('span', { 'data-menu-list': '1', role: 'menu' }, items.map((item) => h('span', { key: item.id, role: 'menuitem' }, item.label)))
+      : null,
+  );
+}
