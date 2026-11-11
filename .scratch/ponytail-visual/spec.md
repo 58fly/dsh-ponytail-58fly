@@ -1,6 +1,6 @@
 <!-- DSH-FORMAT: md-v1 -->
 <!-- DSH-TITLE: Ponytail 面板图形化：诊断链改管道、效率卡三区块、文字降级进 ? -->
-<!-- DSH-STATUS: ready-for-agent -->
+<!-- DSH-STATUS: closed -->
 <!-- DSH-LABELS: ready-for-agent -->
 <!-- DSH-IDEMPOTENCY-KEY: deck-a43a74ba-5981196 -->
 <!-- DSH-CREATED: 2026-11-11T01:02:43.644Z -->
@@ -180,5 +180,86 @@ export interface Attribution {
 - **未验证**：`?` 悬浮卡在宿主 `HoverCard` 里的实测宽度、管道在 320px 下的表现，都只在静态原型里看过，没有在真面板里量过。实施落地后需要人眼过一遍这两处。
 - **极端情形没有单独出图**：真正的干净安装（没人写过配置文件）会让命中值落在第三层，上面两行都是虚的。方案文档已按「靠字号与字重把眼睛拉过去」处理，但没有单独的截图。
 - 上一轮同类讨论（`.scratch/ponytail-settings-ui/`）决定过「拆三卡 + 每个状态有名词解释」。本次不推翻它，只是认定它没解决「读懂机制」这件事。
+
+## Comments
+
+### local — 2026-11-11T05:46:03.932Z
+## 收尾核对
+
+代码交付在 **`main` @ `8312aca`**，其后只有 `.scratch/` 下的票与规格文档改动（`fb0a9d1`）。已推送，`git ls-remote origin main` 与本地 HEAD 一致。
+下面每条都能在干净 clone 上照着重跑。
+
+### 一、逐票核了什么
+
+| 票 | 对照的判据 | 查的文件 / 测试 | 结论 |
+|---|---|---|---|
+| 01 诊断链改管道 | 归因六规则、与 `diagnose()` 生效值一致、卡面无规则句/图例/列标题、<480px 不横滚、`role` + aria、关卡 | `src/client/attribution.ts:73` `attribute()`；`test/client-attribution.test.mjs` 14 条（含 `哨兵：归因与诊断报告对同一份快照给出相同生效值`、`大小写与空白不改变归属`、`面板 bundle 里的归因与 lib/client/attribution.js 同源`） | 达成 |
+| 02 效率卡四块图形 | 堆叠条真实比例、总和 0 退化、`off` 灰可辨、区间条三项共轴 `−60%…0`、卡面无表头与长标签、清零进 `⋯`、卡底只剩一行限定语、三态不出 NaN、紧凑不横滚 | `src/client/mini.ts:30` `modeSlices()`、`:47` `BAND_MIN`、`:59` `axisPercent()`；`src/client/panel.tsx:902` `ModeStack`、`:951` `SavingsBands`；`test/client-mini.test.mjs` 9 条；`test/client-efficiency-surface.test.mjs` 3 条 | 达成 |
+| 03 说明收进 `?` | 七个 `?` 全在、删掉的句子一句不丢、术语统一 | `src/client/panel.tsx:340` `HelpBubble`；`test/client-panel-surface.test.mjs:76`（`HELP_ENTRIES` 七项 + 诚实说明四项）；`test/client-efficiency-surface.test.mjs:48`（`IN_HELP` 五句正面清单）；`test/surface.mjs` 的 `withoutHelp()` | 达成 |
+| 04 收口 | 两份设计文档、CHANGELOG、四张 `final-*.png`、遗留登记、全关卡 | `docs/design/ponytail-settings-ui.md` §4/§5/§8.1、`docs/design/ponytail-efficiency-ui.md`、`CHANGELOG.md` 的 `[0.4.0]`、`docs/design/prototype-shots/final-{clean,env,invalid,compact}.png`、票 04 正文「## 遗留风险登记」 | 达成 |
+| 05 判据缺陷 | 非法值不再被报成生效、双合法同源不变、无 base 场景不变 | `src/l0/diagnosis.ts:157-159`；`test/client-diagnosis.test.mjs` 的新增 3 条 | 达成（本批顺带修，规格原本划在 Out of Scope，已单独成票） |
+| 06 三处视觉未验证 | 暗色五态可分、320px 无横滚、`?` 文字不被截 | `docs/design/prototype-shots/verify-{dark,320,help}.png`；harness 量测（`scrollWidth===clientWidth`、管道 12×46、卡片 320×213 无截断） | 达成，并顺带修掉 320px 档位折行（`8312aca`） |
+
+### 二、逐条用户故事
+
+| # | 证据 |
+|---|---|
+| 1 阅读顺序即取值顺序 | `panel.tsx:683` 容器按 `attribution.levels` 恒序渲染；`test/client-attribution.test.mjs:30` 断言顺序 |
+| 2 生效值是实心点上的大字 | `panel.tsx:551` `levelValue()`：`hit` 走 22px/600 等宽；`pipeLabel()` 的 aria 也说「生效」 |
+| 3 非法值原值标红、该层不通 | `panel.tsx:574` `PipeSegment` 在 `invalid` 画断口；`levelValue` 用 danger 色 + 600（无删除线）；`test/client-attribution.test.mjs:59` |
+| 4 环境变量赢时上下层虚掉 | `test/client-attribution.test.mjs:65`；截图 `final-env.png` |
+| 5 干净安装底层淡到几乎看不见 | `panel.tsx:562` `past → opacity 0.32`；`test/client-attribution.test.mjs:92`「兜底没轮到，不是被覆盖」 |
+| 6 层名写「环境变量」 | `diagnosis.ts` 的 `LABELS`；`attribution.ts` 的 `LABELS` |
+| 7 层名「配置文件」、出处进 `?` | `LABELS.patch`；`panel.tsx` 的 `DIAGNOSIS_LOCATION` 进 `诊断链怎么读` |
+| 8 「打开配置文件」还在原位 | `panel.tsx` 诊断卡卡头动作位；`test/client-*` 未删该按钮 |
+| 9 `?` 里能看到变量名与补丁路径 | `诊断链怎么读` 内含 `PONYTAIL_DEFAULT_MODE`、`cordis.patch.yml → ponytail-58fly.config.defaultMode`、`src/l0/mode.ts → DEFAULT_MODE` |
+| 10 卡面无备注文字 | `test/client-panel-surface.test.mjs:43`、`:53`（效率侧）；`withoutHelp()` 削 `?` 后扫描 |
+| 11 主数字是受管轮次 | `panel.tsx` ① 块 `PRIMARY_NUMBER` + `snapshot.managedTurns` |
+| 12 环里 `75%`、旁边 `96 / 128` | `panel.tsx` ① 块 `Ring` 后紧跟 `{group(injections)} / {group(managedTurns)}`；`test/client-panel-surface.test.mjs:87` 守住。**这一条在第一次自检时只有前半句，本次已补，`811b3e9`** |
+| 13 一条堆叠条画完四档 | `panel.tsx:902` `ModeStack` + `modeLegend()`；截图四张都可见 |
+| 14 `off` 后挂 `?` | `panel.tsx:928` `HelpBubble label="off 那段灰条是什么"` |
+| 15 三行共用一根横轴 | `panel.tsx:951` `SavingsBands`，轴端 `BAND_MIN/BAND_MAX` 写死；`test/client-mini.test.mjs:36`、`:44` |
+| 16 卡面只写「上游基准，非本机测量」 | `panel.tsx` 卡底；`test/client-efficiency-surface.test.mjs:53` 禁掉长标题「比没用 ponytail 的情况」 |
+| 17 `?` 里给推算基数与链接 | `基准推算的依据` 里的 `BASELINE_CAVEAT` + `baselineBasis(...)` + `BASELINE.outputTokens.source` |
+| 18 三个杂项压成一行 | `panel.tsx` ③ 块 `MONO_LINE`；口径进 `这一行的三个量怎么算` |
+| 19 清零进 `⋯` 且二次确认 | `panel.tsx` 卡头 `Menu`；`test/client-efficiency-surface.test.mjs:58` |
+| 20 420px 不横向滚动 | harness 四列 `scrollWidth === clientWidth`（518/518/518/418）；截图 `final-compact.png` |
+| 21 `role="group"` + 说全三层结局的 aria | `panel.tsx:683` + `pipeLabel()`；`test/client-panel-surface.test.mjs:48` 断言 `role="group"` 且禁 `role="img"`、aria 含「没赢」「不是有效档位」 |
+| 22 暗色下三态分得开 | 只用 `--dsw-alias-state-*` / `--dsw-alias-border-l3` / `--dsw-alias-label-*`，无写死色值（`verify` 扫 `panel.tsx`/`charts.tsx` 零命中）。**票 06 补了 `verify-dark.png`**：`bg rgb(30,31,33)` 下五态可辨 |
+| 23 数据结构与口径一行没动 | `git diff 3fb35a1..8312aca -- src/stats` 为空；`src/l0/` 只有 `diagnosis.ts`（票 05 的缺陷修复），`StatsStore`/`projectSavings`/`BASELINE` 无改动 |
+| 24 verify 的诚实纪律哨兵保留 | `pnpm verify` 通过（34 源文件 / 119 产物）；`test/client-efficiency-surface.test.mjs` 仍含「不许写你省了」那一组 |
+| 25 CHANGELOG 说清是呈现方式变了 | `CHANGELOG.md` 的 `[0.4.0]`「这一版只改呈现方式，数据口径一条没动」 |
+| 26 归因规则单独记在规格里、有单测钉住 | 本规格「归因规则（本次的核心契约）」六条 + `test/client-attribution.test.mjs` 14 条 |
+
+### 三、与规格的两处偏差（都不是缩减，写在这里免得复核时对不上）
+
+1. **`charts.tsx` 没有新增 `Pipeline` / `RangeBars`**。规格原写在这两个文件里，实现落到 `panel.tsx` 的 `PipeSegment` / `SavingsBands`——两者都要读 `compact`、要跟层名和值同格对齐，跟卡片排版绑死；`charts.tsx` 现在只剩 `Ring`（`BarList` 已删）。纯函数部分按规格放进新文件，但是 `src/client/mini.ts` 而不是塞进 `attribution.ts`：归因和坐标换算混在一处，测试断言会互相干扰。
+2. **`?` 是七个不是五个**。规格说「五个 `?` 承载全部说明文本」，实现时把「`off` 灰段是什么」和「这一行的三个量怎么算」拆开挂——一句管三件事的 `?` 反而要读两遍。
+
+### 四、检查（在 `8312aca` 上跑，干净工作区）
+
+```
+pnpm typecheck   → exit 0
+pnpm build       → exit 0（lib/client.js 61731 bytes + lib/client/{attribution,mini}.js）
+pnpm test        → # tests 307 / # pass 307 / # fail 0
+pnpm verify      → verify 通过（34 个源文件，119 个产物文件，1 条提醒）
+```
+
+`git status --porcelain` 空；只有一条分支 `main`；无 stash；无未合并分支独有的提交。
+`lib/`、`*.tgz`、`.dsh-*-cache/` 是 gitignore 的构建产物与宿主缓存，不属于本次交付面。
+
+### 五、遗留
+
+用户故事 22 当初写的「token 层面成立、没有暗色截图」，现在已经不是空口：票 06 出了三张验收图。
+
+| 项 | 处置 |
+|---|---|
+| 暗色主题五态是否分得开 | 票 06 已做：`verify-dark.png`，`bg rgb(30,31,33)` / `fg rgb(242,243,245)`，实心 / 虚线空心 / 淡出 / 断口红 / 虚线问号五态可辨 |
+| 320px 窄栏是否横滚 | 票 06 已做：`verify-320.png`，两列 `scrollWidth === clientWidth === 318`，管道 12×46、命中值 19px |
+| `?` 悬浮卡是否被截 | 票 06 已做：`verify-help.png`，最长一段 319 字落在 320×397 里，无省略号、无滚动条 |
+| 320px 档位标签折成两行 | 票 06 查出来的，当场修了：窄栏只留英文档名（`8312aca`） |
+| `diagnose()` 判据缺陷 | 票 05 修复（`76a180b`），不属于遗留 |
+
+票 06 自己也记了一条边界：`?` 的**浮层定位**（往右探出还是被视口夹紧）由宿主 `HoverCard` 决定，harness 的替身只能证明「卡片宽度与文字不截断」。这不是留给他人的缺口，是面板不该管的事。
 
 ## 进度
