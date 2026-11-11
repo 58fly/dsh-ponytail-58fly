@@ -76,6 +76,15 @@ const LOGGER_SCOPE = 'ponytail-58fly';
 const STATS_PATH = '/api/ponytail-stats/snapshot';
 
 /**
+ * 面板开着时的重读间隔。
+ *
+ * 宿主的事件转发白名单是硬编码且每进程只允许一个源（票 04），没有合法推送，
+ * 所以只能由面板自己定时拉。两秒是「够快看出数字在动、又不至于把宿主端点当心跳打」
+ * 的折中；真正省事的那次读取仍然是订阅时的立即一拉。
+ */
+const STATS_POLL_MS = 2000;
+
+/**
  * `sidebarRight` 服务面里我们用到的部分（宿主的 `ISidebarRight`）。
  *
  * 只写 `openResource` 与 `mounted`：前者开资源，后者回答「现在有没有会话」。
@@ -226,20 +235,34 @@ export function apply(ctx: Context): void {
       }
     };
 
-    // 统计通道：挂载时拉一次，之后只有用户点「刷新」才再拉。宿主的事件转发白名单
-    // 是硬编码且每进程只允许一个源（票 04），没有合法的推送，所以这里不假装能自动更新。
+    // 统计通道：挂载时拉一次，之后面板每 STATS_POLL_MS 自己再拉一次（见下面的
+    // subscribe）。宿主的事件转发白名单是硬编码且每进程只允许一个源（票 04），
+    // 没有合法的推送，所以轮询是唯一不撒谎的「自动更新」。
     const pageFetch = (globalThis as { fetch?: StatsTransport }).fetch;
     let statsSnapshot: StatsView | null = null;
     let statsStatus: StatsStatus = 'loading';
     let notify = (): void => {};
+    /* 快照的版本号：只有它变了，`statsStore.getSnapshot()` 才换引用。 */
+    let statsRevision = 0;
+
+    /**
+     * 「有变化了」的唯一入口：先记一笔版本，再叫醒订阅者。
+     *
+     * 不在这里直接换快照对象，是因为 `statsPort` 要到下面才定义；缓存在
+     * `statsStore.getSnapshot` 里惰性拼出来，两处的顺序就不互相牵连了。
+     */
+    const publish = (): void => {
+      statsRevision += 1;
+      notify();
+    };
 
     const pull = (): void => {
       statsStatus = statsSnapshot === null ? 'loading' : statsStatus;
-      notify();
+      publish();
       const call = pageFetch === undefined ? null : pageFetch;
       if (call === null) {
         statsStatus = 'error';
-        notify();
+        publish();
         return;
       }
       void requestStats(call, null)
@@ -252,7 +275,7 @@ export function apply(ctx: Context): void {
           statsStatus = 'error';
           ctx.logger(LOGGER_SCOPE).warn('效率统计读取失败：' + describeError(error));
         })
-        .finally(notify);
+        .finally(publish);
     };
 
     const statsPort: StatsPanelPort = {
@@ -272,7 +295,7 @@ export function apply(ctx: Context): void {
         try {
           statsSnapshot = await readStatsReply(await requestStats(pageFetch, STATS_RESET));
           statsStatus = 'ready';
-          notify();
+          publish();
           return { ok: true, message: '已清零，从 0 重新计数。' };
         } catch (error) {
           return { ok: false, message: '清零失败：' + describeError(error) };
@@ -282,11 +305,29 @@ export function apply(ctx: Context): void {
 
     // 面板要重渲染才能看见新数字：这里把读接口包成一个「订阅-快照」对，
     // 借用 renderer 已有的 `useSnapshot` 机制（同一套 standardHook 约定）。
+    //
+    // `getSnapshot()` 的返回引用必须稳定：`useSyncExternalStoreWithSelector` 默认拿
+    // `Object.is` 比前后两次返回值，每帧新建一个对象等于宣告「快照一直在变」，
+    // React 会一直重渲染（还会报 getSnapshot should be cached）。所以只有
+    // `statsRevision` 真的变了才换一个新对象。
+    let publishedRevision = -1;
+    let publishedView: { readonly port: StatsPanelPort; readonly revision: number } | null = null;
+
     const statsStore = {
-      getSnapshot: () => ({ port: statsPort, revision: statsStatus === 'ready' ? 1 : 0 }),
+      getSnapshot: () => {
+        if (publishedView === null || publishedRevision !== statsRevision) {
+          publishedView = { port: statsPort, revision: statsRevision };
+          publishedRevision = statsRevision;
+        }
+        return publishedView;
+      },
       subscribe: (listener: () => void) => {
         notify = listener;
+        // 面板开着才值得反复拉：数字只在有人看的时候才有意义，没人订阅时
+        // 每两秒打一次宿主端点纯属浪费。退订即停，挂载-卸载不会漏定时器。
+        const timer = setInterval(pull, STATS_POLL_MS);
         return () => {
+          clearInterval(timer);
           notify = () => {};
         };
       },

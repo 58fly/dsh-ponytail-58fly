@@ -12,7 +12,7 @@
 | 不出现写死的颜色 | `grep -nE '#[0-9a-fA-F]{3,8}' src/client/*.tsx` 必须零命中 |
 | 颜色只走 `--dsw-alias-*` | 新增颜色引用必须是下表列出的 token 名 |
 | 不新增依赖 | `package.json` 的 `dependencies` 保持为空/不变；图表是手写 SVG |
-| 不承诺实时 | 文案里不出现「实时」「自动更新」；只有「刷新」按钮与「数据截至 …」 |
+| 不承诺实时 | 文案里不出现「实时」；面板开着时每 2 秒自己重读一次（订阅期间轮询，不是宿主推送），卡头仍只有「刷新」按钮与「数据截至 …」 |
 | 不写「你省了 X」 | `grep -rn "你省了" src/ docs/ skills/` 零命中 |
 
 ## 1. 信息层级（卡内四块，从主到次）
@@ -186,7 +186,7 @@ grep -n '实时' src/client/panel.tsx src/client/charts.tsx                  # �
 ```
 
 三条都已在 `scripts/verify.mjs` 第 10b 组机器化，`pnpm verify` 会同时跑：
-写死颜色与「实时」扫 `panel.tsx` / `charts.tsx` 两个文件；「你省了 / 实际节省」扫全部源码与技能正文，
+写死颜色与「实时」扫 `panel.tsx` / `charts.tsx` 两个文件（`src/client/index.ts` 里说明轮询的注释不在扫描面内，它讲的是实现，不是卡面文案）；「你省了 / 实际节省」扫全部源码与技能正文，
 白名单只有两处写禁令本身的位置（`src/stats/baseline.ts` 的注释、`skills/ponytail-gain/SKILL.md` 的警告）。
 白名单按文件而不是按行——行号一改就漂，文件级白名单在新增出现时仍会报红。
 `node scripts/verify.mjs --selftest` 里为本组喂了一条脏输入，扫描器漏报时 selftest 先红。

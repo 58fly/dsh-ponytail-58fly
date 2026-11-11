@@ -15,7 +15,7 @@
  */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { test } from 'node:test';
+import { mock, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -389,4 +389,92 @@ test('效率读接口挂在 hooks 上，且首次读取失败时不假装有数�
   assert.deepEqual(calls.map((call) => call[2]), [null, 'reset']);
   assert.equal(calls[0][0], '/api/ponytail-stats/snapshot', '端点路径与服务端 Fetch 路由必须是同一份契约');
   assert.equal(calls[0][1], 'POST', '服务端只认 POST');
+});
+
+test('订阅时才开始轮询，退订即停；快照引用只在有新结果时换', async () => {
+  const client = await loadClient();
+  const form = fakeForm();
+  const calls = [];
+  const { ctx, state } = fakeCtx({ forms: form });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (request) => {
+    calls.push([new URL(request.url).pathname, request.method, JSON.parse(await request.text())]);
+    return new Response(
+      JSON.stringify({
+        snapshot: {
+          version: 1,
+          managedTurns: calls.length,
+          injections: 0,
+          injectedBytes: 0,
+          turnsByMode: { off: 0, lite: 0, full: calls.length, ultra: 0 },
+          modeSwitches: 0,
+          commandCalls: 0,
+          firstAt: 1,
+          lastAt: 2,
+          revision: calls.length,
+        },
+        assumption: 'x',
+      }),
+      { headers: { 'content-type': 'application/json' } },
+    );
+  };
+  const wrapped = {
+    ...ctx,
+    inject(deps, callback) {
+      state.deps.push(deps);
+      callback({
+        configForms: { get: () => form },
+        effect(factory) {
+          const disposer = factory();
+          return typeof disposer === 'function' ? disposer : () => {};
+        },
+        slots: {
+          inject(_key, fn) {
+            const disposer = fn();
+            return typeof disposer === 'function' ? disposer : () => {};
+          },
+          register(entry, component) {
+            state.registered.push({ entry, component });
+            return () => {};
+          },
+        },
+      });
+      return Promise.resolve({ dispose: () => {} });
+    },
+  };
+  mock.timers.enable({ apis: ['setInterval'] });
+  try {
+    client.apply(wrapped);
+    await settle();
+    const face = state.registered[0].entry.inject();
+    const store = face.hooks.statsStore;
+    const before = calls.length;
+    assert.ok(before >= 1, '挂载时先拉一次');
+
+    const first = store.getSnapshot();
+    assert.equal(store.getSnapshot(), first, '没有新结果时必须返回同一个引用，否则面板每帧重渲染');
+    assert.equal(first.port, face.stats, '快照里的 port 就是注入给面板的那个读接口');
+
+    let notified = 0;
+    const unsubscribe = store.subscribe(() => {
+      notified += 1;
+    });
+    mock.timers.tick(2000);
+    await settle();
+    assert.equal(calls.length, before + 1, '订阅之后每 STATS_POLL_MS 重读一次');
+    assert.ok(notified > 0, '重读有结果时要叫醒订阅者');
+    const second = store.getSnapshot();
+    assert.notEqual(second, first, '有新结果后必须换引用，否则面板看不见变化');
+    assert.equal(second.port, first.port);
+
+    const afterUnsubscribe = calls.length;
+    unsubscribe();
+    mock.timers.tick(6000);
+    await settle();
+    assert.equal(calls.length, afterUnsubscribe, '退订后不再打宿主端点');
+    assert.equal(store.getSnapshot(), second, '没人订阅时也不再换引用');
+  } finally {
+    mock.timers.reset();
+    globalThis.fetch = realFetch;
+  }
 });

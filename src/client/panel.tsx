@@ -74,6 +74,28 @@ export interface StatsPanelPort {
   readonly reset: () => Promise<WriteOutcome>;
 }
 
+/**
+ * 效率统计的订阅源：`index.ts` 的 `statsStore` 经宿主 renderer 变成
+ * `useStatsStore` prop（`hooks.statsStore` → `use${首字母大写}${其余}`）。
+ *
+ * 只带一个 `revision`：面板要的是「有新数据了，重渲染一次」这个信号，
+ * 数字本身仍从 `props.stats` 读。`index.ts` 缓存了对象，引用只在版本真变时换。
+ */
+export interface StatsStoreView {
+  /** 单调递增的变更序号：变了就说明有新的读取结果。 */
+  readonly revision: number;
+}
+
+/** 宿主 renderer 注入的 `useStatsStore`：与 `useSnapshot` 同一套 selector 约定。 */
+export type UseStatsStore = (selector: (view: StatsStoreView) => StatsStoreView) => StatsStoreView;
+
+/** 模块级恒等 selector：同 `IDENTITY`，每次渲染新建会让 hook 每帧重算。 */
+const STATS_IDENTITY = (view: StatsStoreView): StatsStoreView => view;
+
+/** 宿主没注入订阅源时的兜底：revision 恒为 0，即「从不更新」。 */
+const STATS_STANDING_STILL: StatsStoreView = { revision: 0 };
+const useStatsStandingStill: UseStatsStore = (selector) => selector(STATS_STANDING_STILL);
+
 /** 面板从宿主快照里读到的形状（`ConfigFormSnapshot` 的可用子集）。 */
 export interface PanelSnapshot {
   /** `loading` 表示还没读到第一份；`unavailable` 表示这个客户端看不到该命名空间。 */
@@ -117,6 +139,14 @@ export interface PonytailPanelProps {
   readonly resetMode: () => Promise<WriteOutcome>;
   /** 效率统计的读接口（04 定的 connection.rpc 通道）。 */
   readonly stats: StatsPanelPort;
+  /**
+   * 效率统计的订阅 hook。
+   *
+   * 可选：宿主 renderer 只在 `hooks` 里有 `statsStore` 时才注入它，
+   * 原型 harness 与老宿主没有，这时面板退回「只读 `props.stats`」的
+   * 老样子——数字不会自己动，但点「刷新」仍然有效。
+   */
+  readonly useStatsStore?: UseStatsStore | undefined;
   /**
    * 打开配置文件（票 06）。
    *
@@ -724,6 +754,12 @@ function DiagnosisCard(props: {
  */
 export function PonytailPanel(props: PonytailPanelProps): ReactNode {
   const snapshot = props.useSnapshot(IDENTITY);
+  /**
+   * 订阅效率统计：这里不取返回值，只要它一变，本组件就重渲染一次，
+   * 下面的 `EfficiencySection` 便会重读 `props.stats.snapshot` 拿到新数字。
+   * 数字本身仍以 `props.stats` 为唯一真相，定时拉取在 `index.ts` 里。
+   */
+  (props.useStatsStore ?? useStatsStandingStill)(STATS_IDENTITY);
   const [busy, setBusy] = useState(false);
 
   const diagnosis = diagnose({ value: snapshot.value, base: snapshot.base, user: snapshot.user });

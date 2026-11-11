@@ -99,7 +99,7 @@ H 非法+base | eff full | patch:hit=bogus  fallback:shadowed=full
 ## 四、不动的东西
 
 - `Diagnosis` / `DiagnosisRow` / `StatsView` 形状不动，`diagnose()` 不动，`projectSavings()` 与 `BASELINE` 不动。
-- 统计口径、刷新、`打开配置文件` 行为不动。
+- 统计口径与 `打开配置文件` 行为不动；刷新多了一条：面板开着时每 2 秒自己重读一次（订阅期轮询），「刷新」按钮仍在，点它照旧立即重读。
 - 不新增依赖，不引入图表库：管道与区间条都是内联 SVG，环沿用 `charts.tsx` 的 `Ring`。
 - 颜色只用既有 token：`--dsw-alias-state-business-primary`、`-warn-primary`、`-danger-primary`、`-state-info-primary`、`--dsw-alias-border-l3`、`--dsw-font-mono`。
 - 诚实纪律哨兵（不写「实时」、不写「你省了」、诊断 15 条）全部保留。
