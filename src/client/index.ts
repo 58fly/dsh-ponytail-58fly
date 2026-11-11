@@ -102,7 +102,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** 面板里「打开配置文件」指向的文件：Profile 补丁本身。 */
+/** 面板里「打开配置文件」指向的文件：配置文件本身。 */
 const PATCH_FILE = 'cordis.patch.yml';
 
 /**
@@ -206,7 +206,7 @@ export function apply(ctx: Context): void {
         : { ok: false, message: '宿主拒绝了这次清除：配置可能只读，或这个字段本来就没有用户层覆盖。' };
     };
 
-    // 票 06：把 Profile 补丁开成右侧文档预览。地址按宿主的
+    // 票 06：把配置文件开成右侧文档预览。地址按宿主的
     // `dsh-util-workspace-path` 语法拼（`encodeSegment` 保留冒号给 Windows 盘符），
     // 路径按会话工作目录相对写——绝对路径客户端算不出来。
     //

@@ -9,15 +9,18 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withoutHelp } from './surface.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const panel = await readFile(join(root, 'src/client/panel.tsx'), 'utf8');
 
 /**
- * 只取效率区块的源码：从 `STATS_TEXT` 常量到文件末尾。
- * 档位卡与诊断卡在它前面，那里出现「数值」之类不算这张卡的事。
+ * 卡面 = 效率区块的源码 - 所有 `?` 的正文。
+ *
+ * 票 03 之后那些口径句子合法地住在 `?` 里，卡面只剩图形与数字；这条断言
+ * 守的就是「它们不许从 `?` 里跑回卡面」。
  */
-const SURFACE = panel.slice(panel.indexOf('const STATS_TEXT'));
+const SURFACE = withoutHelp(panel.slice(panel.indexOf('const STATS_TEXT')));
 
 /** 票 02 明确要求从卡面消失的字样。 */
 const BANNED = [
@@ -32,6 +35,20 @@ const BANNED = [
   /这是上游基准，不是本机测量/, // 只剩限定语一行，这句长标题撤掉
   /比没用 ponytail 的情况/,
 ];
+
+/** 票 03：这五句话必须在 `?` 里找得到（卡面上没有，不等于丢了）。 */
+const IN_HELP = [
+  /每个经过 Ponytail pre-step 的轮次都算一次/,
+  /注入次数 \/ 受管轮次/,
+  /次数不是字节/,
+  /档位被切换的次数/,
+  /slash 命令被调用的次数/,
+];
+
+test('卡面删掉的每一句话都在某个 `?` 里', () => {
+  const missing = IN_HELP.filter((pattern) => !pattern.test(panel)).map(String);
+  assert.deepEqual(missing, [], `这些句子既不卡面也不在 ? 里，等于丢了：${missing.join('，')}`);
+});
 
 test('效率卡不再出现表头、说明文本与长标签', () => {
   const hits = BANNED.filter((pattern) => pattern.test(SURFACE)).map(String);

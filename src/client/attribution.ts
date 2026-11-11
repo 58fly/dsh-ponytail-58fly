@@ -57,7 +57,7 @@ export interface Attribution {
 
 /**
  * 层名。与诊断报告里的 `label` 不同：这里是卡面用的短名，报告里的名字
- * 带着实现细节（「Profile 补丁」），上卡面读者不认识。
+ * 带着实现细节（「配置文件」），上卡面读者不认识。
  */
 const LABELS: Readonly<Record<DiagnosisLevel, string>> = {
   env: '环境变量',

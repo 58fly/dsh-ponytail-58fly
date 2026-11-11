@@ -121,8 +121,8 @@ function readField(section: unknown, key: string): FieldReading {
 /** 三层各自的展示名。 */
 const LABELS: Readonly<Record<DiagnosisLevel, string>> = {
   env: '环境变量',
-  patch: 'Profile 补丁',
-  fallback: '内置兜底',
+  patch: '配置文件',
+  fallback: '内置默认值',
 };
 
 /** 三层各自的位置文案。 */
@@ -184,7 +184,7 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
     });
   }
 
-  // 第二层：Profile 补丁（用户层优先，回落组合层）。
+  // 第二层：配置文件（用户层优先，回落组合层）。
   if (patchRaw === null) {
     rows.push({
       level: 'patch',
@@ -223,7 +223,7 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
     });
   }
 
-  // 第三层：内置兜底。
+  // 第三层：内置默认值。
   //
   // 判据必须是「补丁层没给出这个值」而不是「生效值等于兜底值」：用户层写了
   // `full`（恰好等于 DEFAULT_MODE）时，兜底值也等于生效值，但命中的是补丁层。

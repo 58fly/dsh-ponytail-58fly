@@ -28,8 +28,19 @@ import {
 } from 'react';
 import { Button, HoverCard, Menu, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
-import { DIAGNOSIS_PATCH_FROM_PROFILE, diagnose, type Diagnosis, type DiagnosisLevel } from '../l0/diagnosis.js';
 import {
+  DIAGNOSIS_ENV_NAME,
+  DIAGNOSIS_FALLBACK_LOCATION,
+  DIAGNOSIS_PATCH_FROM_PROFILE,
+  DIAGNOSIS_PATCH_LOCATION,
+  diagnose,
+  type Diagnosis,
+  type DiagnosisLevel,
+} from '../l0/diagnosis.js';
+import {
+  BASELINE,
+  BASELINE_CAVEAT,
+  baselineBasis,
   projectSavings,
   type BaselineRow,
   type Estimate,
@@ -107,7 +118,7 @@ export interface PonytailPanelProps {
   /** 效率统计的读接口（04 定的 connection.rpc 通道）。 */
   readonly stats: StatsPanelPort;
   /**
-   * 打开 Profile 补丁（票 06）。
+   * 打开配置文件（票 06）。
    *
    * 可选：宿主没有右侧边栏、或当前不在会话里时 `index.ts` 不传，
    * 卡头就不出现这个按钮——不留死按钮。
@@ -145,7 +156,7 @@ const MODE_HELP: Readonly<Record<RuntimeMode, string>> = {
 /** 状态行里的覆盖关系：面板只认 env / patch，其余另判。 */
 const OVERRIDE_TEXT: Readonly<Partial<Record<DiagnosisLevel, string>>> = {
   env: '被环境变量覆盖',
-  patch: '被 Profile 补丁覆盖',
+  patch: '被配置文件覆盖',
 };
 
 /** 补丁行命中、但注脚说自己来自组合层时，状态行要写的那句话。 */
@@ -172,6 +183,13 @@ function overrideText(diagnosis: Diagnosis): string {
 
 /** 面板标题：设置页左侧导航条目只留品牌名，版本后缀不上标题。 */
 const TITLE = 'Ponytail';
+
+/** 三层各自的出处：卡面不写，只进诊断卡的 `?`——用户排查时要的是「去哪看」。 */
+const DIAGNOSIS_LOCATION: Readonly<Record<DiagnosisLevel, string>> = {
+  env: DIAGNOSIS_ENV_NAME,
+  patch: DIAGNOSIS_PATCH_LOCATION,
+  fallback: DIAGNOSIS_FALLBACK_LOCATION,
+};
 
 /** 标题下的定位说明：告诉读者这是排查用面板，不写产品介绍。 */
 const TAGLINE = '给开发者看的调试面板：改哪个档位、值被谁盖住、省下多少轮次，都摊在同一页里。';
@@ -276,7 +294,18 @@ function Card(props: {
           flexWrap: compact ? 'wrap' : 'nowrap',
         }}
       >
-        <h3 style={{ margin: 0, fontSize: 14, lineHeight: '22px', fontWeight: 600, color: 'var(--dsw-alias-label-primary)' }}>
+        <h3
+          style={{
+            margin: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 14,
+            lineHeight: '22px',
+            fontWeight: 600,
+            color: 'var(--dsw-alias-label-primary)',
+          }}
+        >
           {props.title}
         </h3>
         {props.action === undefined ? null : <div style={CARD_HEAD_ACTION}>{props.action}</div>}
@@ -299,6 +328,32 @@ const HELP_TRIGGER: CSSProperties = {
   lineHeight: '16px',
   cursor: 'help',
 };
+
+/**
+ * 卡里任何一个 `?`：18px 圆钮 + 悬浮卡，宽度跟内容走。
+ *
+ * 卡面上不允许再有说明文字，每一句原话都必须落进某个 `?`——所有入口走这
+ * 一个组件，就不会出现「这里挂了悬停、那里挂了 title」的第二套说法。
+ * @param props - 读屏标签与悬浮卡正文。
+ * @returns 圆钮。
+ */
+function HelpBubble(props: { readonly label: string; readonly children: ReactNode }): ReactNode {
+  return (
+    <HoverCard
+      inline
+      openDelayMs={200}
+      anchor={
+        <button type="button" aria-label={props.label} style={HELP_TRIGGER}>
+          ?
+        </button>
+      }
+      content={<span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{props.children}</span>}
+    />
+  );
+}
+
+/** 悬停卡里的一行：小字、可换行，`?` 内是正文不是装饰。 */
+const HELP_LINE: CSSProperties = { fontSize: 11, lineHeight: '17px', color: 'var(--dsw-alias-label-secondary)' };
 
 /** 状态行里的一项：等宽、可换行但不撑破卡片。 */
 const STATUS_FACT: CSSProperties = { fontFamily: 'var(--dsw-font-mono)', minWidth: 0, overflowWrap: 'anywhere' };
@@ -347,29 +402,15 @@ function ModeCard(props: {
   const title = (
     <>
       档位
-      <HoverCard
-        inline
-        openDelayMs={200}
-        anchor={
-          <button type="button" aria-label="四档完整说明" style={HELP_TRIGGER}>
-            ?
-          </button>
-        }
-        content={
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <strong style={{ fontSize: 12, lineHeight: '18px' }}>四档对照</strong>
-            {RUNTIME_MODES.map((mode) => (
-              <span
-                key={mode}
-                style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11, lineHeight: '17px' }}
-              >
-                <span style={{ fontWeight: 600 }}>{MODE_TEXT[mode]}</span>
-                <span style={{ color: 'var(--dsw-alias-label-secondary)' }}>{MODE_HELP[mode]}</span>
-              </span>
-            ))}
+      <HelpBubble label="四档完整说明">
+        <strong style={{ fontSize: 12, lineHeight: '18px' }}>四档对照</strong>
+        {RUNTIME_MODES.map((mode) => (
+          <span key={mode} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <strong style={{ fontSize: 11, lineHeight: '17px' }}>{MODE_TEXT[mode]}</strong>
+            <span style={HELP_LINE}>{MODE_HELP[mode]}</span>
           </span>
-        }
-      />
+        ))}
+      </HelpBubble>
     </>
   );
 
@@ -417,7 +458,7 @@ function ModeCard(props: {
 }
 
 /**
- * 诊断卡卡头唯一动作（票 06）：把 Profile 补丁开成右侧文档预览。
+ * 诊断卡卡头唯一动作（票 06）：把配置文件开成右侧文档预览。
  *
  * **为什么只给「打开」、不给「复制路径」**：`cordis.patch.yml` 的绝对位置由
  * 宿主决定（`DSH_HOME` 或 profile 目录下），客户端拿不到，服务端也没读过它——
@@ -606,8 +647,34 @@ function DiagnosisCard(props: {
 }): ReactNode {
   const { diagnosis, compact, openConfigFile } = props;
   const attribution = attribute(diagnosis);
+  const title = (
+    <>
+      优先级诊断链
+      <HelpBubble label="诊断链怎么读">
+        <strong style={{ fontSize: 12, lineHeight: '18px' }}>怎么读这条链</strong>
+        <span style={HELP_LINE}>自上而下就是取值顺序，先命中的赢：环境变量 → 配置文件 → 内置默认值。</span>
+        {attribution.levels.map((level) => (
+          <span key={level.level} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <strong style={{ fontSize: 11, lineHeight: '17px' }}>{level.label}去哪看</strong>
+            <span style={{ ...HELP_LINE, fontFamily: 'var(--dsw-font-mono)', overflowWrap: 'anywhere' }}>
+              {DIAGNOSIS_LOCATION[level.level]}
+            </span>
+          </span>
+        ))}
+        <strong style={{ fontSize: 12, lineHeight: '18px', marginTop: 4 }}>图形</strong>
+        <span style={HELP_LINE}>实心圆：写在这里，就是它生效。</span>
+        <span style={HELP_LINE}>虚线空心圆：写了，但被上面那层盖住。</span>
+        <span style={HELP_LINE}>淡出小点：上一层的值已经定了，没轮到它。</span>
+        <span style={HELP_LINE}>红色断口：写的不是有效档位，已忽略。</span>
+        <span style={HELP_LINE}>虚线加 ?：读不到，无法判断。</span>
+        <span style={HELP_LINE}>
+          浏览器里看不到宿主的环境变量，所以这一层永远是 ?。它没写值不代表它没生效：生效值既不等于配置值也不等于默认值时，只能是它在横。
+        </span>
+      </HelpBubble>
+    </>
+  );
   return (
-    <Card title="优先级诊断链" action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
+    <Card title={title} action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
       {/*
         用 group 而不是 img 这个角色：它会把子树整体从无障碍树里
         换掉，层名与值就读不到了，而「配置文件写了 lite 没赢」正是这张卡最想
@@ -856,7 +923,13 @@ function ModeStack(props: { readonly turns: Readonly<Record<RuntimeMode, number>
             ))
         )}
       </div>
-      <span style={MONO_LINE}>{modeLegend(props.turns)}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span style={MONO_LINE}>{modeLegend(props.turns)}</span>
+        <HelpBubble label="off 那段灰条是什么">
+          <span style={HELP_LINE}>off 段是待命档位的轮次：不注入，需要时手写 /ponytail 打开。</span>
+          <span style={HELP_LINE}>它不算进基准推算的基数，所以灰段越宽，下面三行覆盖的轮次占比越小。</span>
+        </HelpBubble>
+      </span>
     </div>
   );
 }
@@ -1094,15 +1167,34 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
         <>
           {/* ① 主数字 + 注入率环。空态时主数字仍是 0，不换成一句话——0 也是真的。 */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', minWidth: 0 }}>
-            <span style={compact ? PRIMARY_NUMBER_COMPACT : PRIMARY_NUMBER}>{group(snapshot.managedTurns)}</span>
-            <Ring value={snapshot.injections} total={snapshot.managedTurns} label="注入率" />
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={compact ? PRIMARY_NUMBER_COMPACT : PRIMARY_NUMBER}>{group(snapshot.managedTurns)}</span>
+              <HelpBubble label="受管轮次怎么算">
+                <span style={HELP_LINE}>每个经过 Ponytail pre-step 的轮次都算一次。</span>
+              </HelpBubble>
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Ring value={snapshot.injections} total={snapshot.managedTurns} label="注入率" />
+              <HelpBubble label="注入率怎么算">
+                <span style={HELP_LINE}>注入次数 / 受管轮次。每轮拼进上下文的注入记一次，次数不是字节。</span>
+                <span style={HELP_LINE}>环空着表示还没有注入：没有受管轮次，或一轮都没注入。</span>
+              </HelpBubble>
+            </span>
           </div>
 
           {/* ② 四档堆叠条 + 一行 mono 图例。 */}
           <ModeStack turns={snapshot.turnsByMode} />
 
-          {/* ③ 杂项压成一行。 */}
-          <span style={MONO_LINE}>{misc}</span>
+          {/* ③ 杂项压成一行，口径挂在这行末尾的 `?` 上。 */}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <span style={MONO_LINE}>{misc}</span>
+            <HelpBubble label="这一行的三个量怎么算">
+              <span style={HELP_LINE}>注入字节：注入文本的累计大小，与注入次数不是一回事。</span>
+              <span style={HELP_LINE}>切档：本机运行期里档位被切换的次数。</span>
+              <span style={HELP_LINE}>命令：本机运行期里 slash 命令被调用的次数。</span>
+              <span style={HELP_LINE}>三个数都只算本机这一次运行，重启归零。</span>
+            </HelpBubble>
+          </span>
 
           {/* ④ 三行共轴区间条。 */}
           {projection.activeTurns === 0 ? (
@@ -1113,8 +1205,25 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
         </>
       )}
 
-      {/* 卡底唯一一行：基准的限定语。口径、出处、推算基数都留给票 03 的 `?`。 */}
-      {snapshot === null ? null : <span style={MONO_LINE}>{STATS_TEXT.baselineCaveat}</span>}
+      {/* 卡底唯一一行：基准的限定语，出处与推算基数挂在它后面的 `?` 上。 */}
+      {snapshot === null ? null : (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span style={MONO_LINE}>{STATS_TEXT.baselineCaveat}</span>
+          <HelpBubble label="基准推算的依据">
+            <span style={HELP_LINE}>{BASELINE_CAVEAT}</span>
+            <span style={HELP_LINE}>{baselineBasis(projection.activeTurns, projection.tokensPerTurn)}</span>
+            <a
+              href={BASELINE.outputTokens.source}
+              target="_blank"
+              rel="noreferrer"
+              style={{ ...HELP_LINE, color: 'var(--dsw-alias-link)' }}
+            >
+              上游方法论
+            </a>
+            <span style={HELP_LINE}>三行区间取自上游 39 个任务、每个 5 次、三臂对照的结论，不是这台机器上发生的事。</span>
+          </HelpBubble>
+        </span>
+      )}
     </Card>
   );
 }

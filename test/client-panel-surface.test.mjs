@@ -12,6 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withoutHelp } from './surface.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const panel = await readFile(join(root, 'src/client/panel.tsx'), 'utf8');
@@ -21,7 +22,7 @@ const panel = await readFile(join(root, 'src/client/panel.tsx'), 'utf8');
  * 里面必须保留「先命中的赢」「没赢」这类说法，否则读屏用户拿不到机制。
  * 其余部分（组件、样式、管道画法）全部留在扫描范围内。
  */
-const SURFACE = panel.replace(/function pipeLabel[\s\S]*?\n}\n/, '');
+const SURFACE = withoutHelp(panel.replace(/function pipeLabel[\s\S]*?\n}\n/, ''));
 
 /** 被删掉的那批解释层。 */
 const BANNED = [
@@ -59,4 +60,25 @@ test('管道容器带 role="group" 与说全三层结局的 aria-label', () => {
   assert.match(panel, /取值顺序\$\{order\}/);
   assert.match(panel, /没赢/);
   assert.match(panel, /不是有效档位/);
+});
+
+/** 票 03：六个（这里七个，`off` 另挂一个）`?` 入口，标签就是它们的清单。 */
+const HELP_ENTRIES = [
+  '四档完整说明',
+  '诊断链怎么读',
+  '受管轮次怎么算',
+  '注入率怎么算',
+  '这一行的三个量怎么算',
+  'off 那段灰条是什么',
+  '基准推算的依据',
+];
+
+test('诊断卡与效率卡的每个 `?` 都在，且诚实说明没被软化', () => {
+  const missing = HELP_ENTRIES.filter((label) => !panel.includes('label="' + label + '"'));
+  assert.deepEqual(missing, [], `这些 ? 入口不见了：${missing.join('，')}`);
+  // 规则句、机制说明与那句「读不到不代表没生效」必须留在 ? 里。
+  assert.match(panel, /自上而下就是取值顺序/);
+  assert.match(panel, /先命中的赢/);
+  assert.match(panel, /浏览器里看不到宿主的环境变量/);
+  assert.match(panel, /没写值不代表它没生效/);
 });
