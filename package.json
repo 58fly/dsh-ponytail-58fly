@@ -78,6 +78,7 @@
     "measure": "node scripts/measure-prompt.mjs",
     "verify:release": "node scripts/verify-release.mjs --verify",
     "verify:published": "node scripts/verify-published.mjs",
+    "pretest": "pnpm run build",
     "test": "node --test test/*.test.mjs",
     "prepublishOnly": "pnpm run typecheck && pnpm run build && pnpm run verify && pnpm run check:skills && pnpm run check:readme && pnpm run check:matrix && pnpm test && node scripts/verify-release.mjs"
   },

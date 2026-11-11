@@ -10,14 +10,14 @@
  *
  * 规则见规格 `.scratch/ponytail-visual/spec.md`：
  * 1. env 命中即命中；不可观测即不可观测。
- * 2. patch 的值不在 `RUNTIME_MODES` 里即非法，不看报告说它命没命中。
+ * 2. patch 的值 `coerceMode()` 归一化后仍不是档位即非法，不看报告说它命没命中。
  * 3. 前两层都没命中，兜底命中。
  * 4. 非法不阻断扫描——`不可观测 + 非法 + 命中` 是合法组合。
  * 5. 没写值的层是 `past`，由渲染整段淡出；写了没赢的保持 `miss` / `invalid`。
  *
  * @module
  */
-import { isRuntimeMode, type RuntimeMode } from '../l0/mode.js';
+import { coerceMode, type RuntimeMode } from '../l0/mode.js';
 import type { Diagnosis, DiagnosisLevel } from '../l0/diagnosis.js';
 
 /** 一层在管道里的状态。 */
@@ -85,11 +85,18 @@ export function attribute(diagnosis: Diagnosis): Attribution {
 
   // 补丁层按取值域判合法性，不看报告怎么说：报告那一步按值归属，跨层拼接时
   // 会把非法值报成命中。没写与写了没赢必须分开——前者整段淡出，后者画空心圆。
+  //
+  // 归一化必须走 `coerceMode`，不能直接比对字面量：诊断报告里值保留原样
+  // （`FULL` / ` full ` 都合法），自己比字面量会把用户写的合法档位判成非法，
+  // 把答案指到错误的层。
   const patchValue = patch?.value ?? null;
-  const patchState: AttributionState =
-    patchValue === null ? 'past' : isRuntimeMode(patchValue) ? 'miss' : 'invalid';
+  const patchMode = patchValue === null ? null : coerceMode(patchValue);
+  const patchState: AttributionState = patchValue === null ? 'past' : patchMode === null ? 'invalid' : 'miss';
 
-  const from: DiagnosisLevel = envState === 'hit' ? 'env' : patchState === 'miss' ? 'patch' : 'fallback';
+  // 命中判据用归一化后的档位与生效值比，不靠 `from` 的三元反推：`FULL`
+  // 这类大小写不该让答案落到兜底层。
+  const patchWins = patchMode !== null && patchMode === diagnosis.effective;
+  const from: DiagnosisLevel = envState === 'hit' ? 'env' : patchWins ? 'patch' : 'fallback';
 
   /**
    * 写了却没赢的 `miss` / `invalid` 一律保留原貌，只有没写值的那层才是 `past`。
@@ -99,7 +106,10 @@ export function attribute(diagnosis: Diagnosis): Attribution {
    */
   const draft: readonly AttributionLevel[] = [
     { level: 'env', label: LABELS.env, value: envState === 'hit' ? diagnosis.effective : null, state: envState },
-    { level: 'patch', label: LABELS.patch, value: patchValue, state: patchState },
+    // 值保留报告里的原样写法：用户写的是 `FULL`，卡面就该显示 `FULL`。
+    { level: 'patch', label: LABELS.patch, value: patchValue, state: patchWins ? 'miss' : patchState },
+    // 兜底层永远有值（它就是内置默认值），所以它的「没轮到」只能由
+    // `levels` 那一趟按 `from` 改判——这里先给 `past`，轮到时会被提成 `hit`。
     { level: 'fallback', label: LABELS.fallback, value: fallback?.value ?? diagnosis.effective, state: 'past' },
   ];
   const levels: readonly AttributionLevel[] = draft.map((item) => (item.level === from ? { ...item, state: 'hit' } : item));

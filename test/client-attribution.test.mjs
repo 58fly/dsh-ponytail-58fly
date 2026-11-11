@@ -10,11 +10,16 @@
  * 不存在的档位「生效了」。
  */
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { DEFAULT_MODE, RUNTIME_MODES } from '../lib/l0/mode.js';
+import { DEFAULT_MODE, RUNTIME_MODES, coerceMode } from '../lib/l0/mode.js';
 import { diagnose } from '../lib/l0/diagnosis.js';
 import { attribute } from '../lib/client/attribution.js';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** 只看状态，让断言读起来像句子。 */
 const states = (attribution) => Object.fromEntries(attribution.levels.map((item) => [item.level, item.state]));
@@ -118,4 +123,54 @@ test('哨兵：归因与诊断报告对同一份快照给出相同生效值', ()
     assert.equal(hits[0].value, diagnosis.effective, JSON.stringify(snapshot));
     assert.equal(attribution.from, hits[0].level, JSON.stringify(snapshot));
   }
+});
+
+test('大小写与空白不改变归属：合法档位不因为写法被判成非法', () => {
+  for (const written of ['FULL', 'Full', ' full ']) {
+    const diagnosis = diagnose({ value: { defaultMode: 'full' }, base: { defaultMode: 'full' }, user: { defaultMode: written } });
+    const attribution = attribute(diagnosis);
+    assert.equal(level(attribution, 'patch').state, 'hit', written);
+    assert.equal(attribution.from, 'patch', written);
+    assert.equal(attribution.effective, 'full', written);
+    // 卡面显示诊断报告给的原样（报告已 trim 掉首尾空白，大小写不动）。
+    assert.equal(level(attribution, 'patch').value, written.trim());
+  }
+});
+
+test('归因与诊断报告在含大小写写法的组合上不漂移', () => {
+  const values = ['full', 'FULL', ' ultra ', 'Ultra', 'bogus'];
+  for (const value of values) {
+    for (const base of ['full', 'Ultra', undefined]) {
+      for (const user of values) {
+        const snapshot = {
+          value: { defaultMode: value },
+          ...(base === undefined ? {} : { base: { defaultMode: base } }),
+          user: { defaultMode: user },
+        };
+        const diagnosis = diagnose(snapshot);
+        const attribution = attribute(diagnosis);
+        const label = JSON.stringify(snapshot);
+        assert.equal(attribution.effective, diagnosis.effective, label);
+        // 两边对「哪一层赢」必须同口径：诊断说补丁层命中，归因也必须说补丁层命中。
+        assert.equal(attribution.from === 'patch', level(attribution, 'patch').state === 'hit', label);
+        if (coerceMode(user) !== null && coerceMode(user) === diagnosis.effective) {
+          assert.equal(level(attribution, 'patch').state, 'hit', label);
+        }
+      }
+    }
+  }
+});
+
+test('面板 bundle 里的归因与 lib/client/attribution.js 同源，不许只改一份', () => {
+  // `src/client/` 被 tsc 排除，attribution 由 esbuild 打两份：面板 bundle 内联一份，
+  // `lib/client/attribution.js` 单独一份给测试用。源码只有一份，产物有两份——
+  // 这条守卫拿一份只可能来自源码的判据去两边各找一次，任何一边漂了都会红。
+  const marker = 'patchMode === null';
+  return Promise.all([
+    readFile(join(root, 'lib/client.js'), 'utf8'),
+    readFile(join(root, 'lib/client/attribution.js'), 'utf8'),
+  ]).then(([shell, pure]) => {
+    assert.ok(pure.includes(marker), 'lib/client/attribution.js 里找不到归因判据');
+    assert.ok(shell.includes(marker), 'lib/client.js 里找不到归因判据——两份产物已经不同源');
+  });
 });

@@ -17,10 +17,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const panel = await readFile(join(root, 'src/client/panel.tsx'), 'utf8');
 
 /**
- * 扫之前先删掉 `pipeLabel()` 整个函数：那句话是给读屏用的，不是卡面文字——
- * 它必须保留「先命中的赢」这种说法，否则读屏用户拿不到机制。
- *
- * 按函数边界切，不按注释标题切：标题一改位置，切出来的就是缺一块的源码。
+ * 只剔除 `pipeLabel()` 这一个函数体：它产出的是 aria-label，不是卡面文字，
+ * 里面必须保留「先命中的赢」「没赢」这类说法，否则读屏用户拿不到机制。
+ * 其余部分（组件、样式、管道画法）全部留在扫描范围内。
  */
 const SURFACE = panel.replace(/function pipeLabel[\s\S]*?\n}\n/, '');
 
@@ -31,10 +30,10 @@ const BANNED = [
   /'生效'/, // 五态标签
   /'被覆盖'/,
   /'值非法'/,
-  /'未设置'/,
   />状态</, // 表头
   />来源</,
   />取值</,
+  /'未设置'/, // 值位已改渲染 `—` / `?`，这条防的是有人把文字状态标签加回来
   /'备注'/,
   /LEGEND/,
   /DIAGNOSIS_RULE/,
@@ -45,7 +44,12 @@ test('诊断卡的规则句、五态标签与表格列标题不再出现在面�
   assert.deepEqual(hits, [], `这些解释层又回到了卡面：${hits.join('，')}`);
 });
 
-test('管道图形带 role="img" 与中文 aria-label', () => {
-  assert.match(panel, /role="img"/);
+test('管道容器带 role="group" 与说全三层结局的 aria-label', () => {
+  // `role="img"` 会把子树从无障碍树里换掉，层名与值就读不到了。
+  assert.match(panel, /role="group"/);
+  // 注释里还会提到 role="img" 为什么被换掉，只禁真正的 JSX 属性。
+  assert.doesNotMatch(panel, /role="img"\s/);
   assert.match(panel, /取值顺序\$\{order\}/);
+  assert.match(panel, /没赢/);
+  assert.match(panel, /不是有效档位/);
 });

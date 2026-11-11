@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Ponytail 面板 · 图形化方案原型 v3</title>
+<style>
+:root{
+  --bg1:#fff; --bg2:#f7f7f8; --bg3:#efeff1; --l3:#e3e3e6;
+  --pri:#17181a; --sec:#6b6f76; --ter:#9aa0a6;
+  --ok:#1a9e5f; --warn:#c47b00; --bad:#d1332e; --info:#2a6fd6; --biz:#3d6ef5;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --radius:8px;
+  --font:-apple-system,"SF Pro Text","PingFang SC",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:20px;background:#e8e8ea;font-family:var(--font);color:var(--pri)}
+.wrap{display:grid;grid-template-columns:repeat(2,520px);gap:16px;justify-content:center;align-items:start}
+.cell{background:var(--bg1);border:.5px solid var(--l3);border-radius:10px;padding:14px}
+.cell>h2{font:11px/17px var(--mono);color:var(--sec);margin:0 0 10px}
+.panel{display:flex;flex-direction:column;gap:12px}
+.card{display:flex;flex-direction:column;gap:10px;padding:12px;background:var(--bg2);border:.5px solid var(--l3);border-radius:var(--radius)}
+.card>header{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h3{margin:0;font-size:13px;font-weight:600;line-height:20px}
+button{font:inherit;font-size:11px;border:.5px solid var(--l3);background:var(--bg1);border-radius:6px;padding:2px 7px;cursor:pointer;color:inherit}
+button.icon{padding:1px 6px;color:var(--sec);letter-spacing:1px}
+.q{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border:.5px solid var(--l3);border-radius:50%;font-size:10px;color:var(--sec);cursor:help;vertical-align:1px}
+
+.seg{display:flex;gap:2px;background:var(--bg3);padding:2px;border-radius:7px}
+.seg button{flex:1;border:none;background:transparent;text-align:center;font-size:12px;padding:4px 0;border-radius:5px}
+.seg button[aria-checked="true"]{background:var(--bg1);font-weight:600;box-shadow:0 0 0 .5px var(--l3)}
+
+/* 诊断管道 */
+.flow{display:grid;grid-template-columns:32px 1fr;column-gap:10px;align-items:start}
+.flow svg{display:block}
+.levels{margin:0;padding:0;list-style:none;display:flex;flex-direction:column}
+.levels li{height:40px;display:flex;align-items:center;gap:8px;min-width:0}
+.levels .name{font-size:12px;color:var(--pri);white-space:nowrap}
+.levels .val{font:12px/18px var(--mono);color:var(--pri)}
+.levels .val.nil{color:var(--ter)}
+.levels li.past{opacity:.32}
+.levels li.win .name{font-weight:600}
+.levels li.win .val{font:600 22px/26px var(--mono);letter-spacing:-.6px}
+.levels li.fail .val{color:var(--bad);font-weight:600}
+
+/* 紧凑：层名在上、值在下，管道缩成 12px 竖槽 */
+.compact .flow{grid-template-columns:12px 1fr;column-gap:8px}
+.compact .levels li{height:46px;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px}
+.compact .levels li.win .val{font-size:19px;line-height:22px}
+
+.hero{display:flex;align-items:center;gap:10px}
+.hero .num{font:600 30px/34px var(--mono);letter-spacing:-1px}
+.hero .ring{margin-left:auto;display:flex;align-items:center;gap:7px}
+.hero .ring .txt{display:flex;flex-direction:column;font:11px/15px var(--mono);color:var(--sec)}
+.stack-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:1px;background:var(--bg1)}
+.stack-bar i{display:block;height:100%;background:var(--biz)}
+.stack-bar i.off{background:var(--l3)}
+.stack-legend{display:flex;gap:10px;font:11px/17px var(--mono);color:var(--sec);margin-top:6px;flex-wrap:wrap;align-items:center}
+.stack-legend em{font-style:normal;color:var(--pri)}
+.micro{font:11px/17px var(--mono);color:var(--ter)}
+.ranges{display:flex;flex-direction:column;gap:3px;margin-top:2px}
+.range-row{display:grid;grid-template-columns:62px 1fr 40px;align-items:center;gap:8px;font-size:11px}
+.range-row .lbl{color:var(--sec);white-space:nowrap}
+.range-row .val{font:11px/16px var(--mono);text-align:right}
+.axis{font:10px/16px var(--mono);color:var(--ter);display:grid;grid-template-columns:62px 1fr 40px;gap:8px}
+.axis .ticks{display:flex;justify-content:space-between}
+.card footer{display:flex;justify-content:flex-start;align-items:center;gap:6px}
+.caveat{font-size:10px;color:var(--ter)}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap"></div>
+<script>
+/* 三层：环境变量 / 配置文件 / 内置默认值。state: hit / miss（写了没赢）/ past（没轮到）/ unknown / fail */
+const LEVELS = ['环境变量', '配置文件', '内置默认值'];
+
+function pipe(states) {
+  const compact = !!states.compact;
+  const w = compact ? 12 : 32, cx = w / 2;
+  const rowH = compact ? 46 : 40;
+  const r = compact ? 5 : 7;
+  const y = (i) => rowH / 2 + rowH * i;
+  const lid = states.levels.map((s) => s.state);
+  const parts = [];
+
+  // 层与层之间的连线：由「上一层」决定形状与颜色
+  const link = (i) => {
+    const prev = lid[i];
+    if (prev === 'hit' || prev === 'past') return;           // 命中之后不再往下扫
+    const a = y(i) + (prev === 'fail' ? 11 : r);
+    const b = y(i + 1) - (lid[i + 1] === 'fail' ? 11 : r);
+    if (prev === 'miss') parts.push(line(a, b, 'var(--warn)', 2, '3 4'));
+    else if (prev === 'unknown') parts.push(line(a, b, 'var(--info)', 2, '3 4'));
+    else if (prev === 'fail') parts.push(line(a, b, 'var(--l3)', 2, null)); // 这层不通，扫描继续往下
+  };
+  const line = (a, b, color, width, dash) =>
+    `<line x1="${cx}" y1="${a}" x2="${cx}" y2="${b}" stroke="${color}" stroke-width="${width}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
+
+  states.levels.forEach((s, i) => {
+    if (i > 0) link(i - 1);
+    const cy = y(i);
+    if (s.state === 'hit') {
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--biz)"/>`);
+    } else if (s.state === 'miss') {
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--warn)" stroke-width="2"/>`);
+    } else if (s.state === 'unknown') {
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--info)" stroke-width="2" stroke-dasharray="2.5 2.5"/>`);
+      if (!compact) parts.push(`<text x="${cx}" y="${cy + 3.5}" text-anchor="middle" font-size="9" fill="var(--info)">?</text>`);
+    } else if (s.state === 'fail') {
+      // 断口：这一层没有节点，上下两段红线各留一小截，中间空着
+      parts.push(`<line x1="${cx}" y1="${cy - 11}" x2="${cx}" y2="${cy - 4}" stroke="var(--bad)" stroke-width="3" stroke-linecap="round"/>`);
+      parts.push(`<line x1="${cx}" y1="${cy + 4}" x2="${cx}" y2="${cy + 11}" stroke="var(--bad)" stroke-width="3" stroke-linecap="round"/>`);
+    } else {
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="2.5" fill="var(--l3)"/>`);
+    }
+  });
+
+  const h = rowH * states.levels.length;
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="优先级管道">${parts.join('')}</svg>`;
+}
+
+function levelsHtml(states) {
+  return states.levels.map((s) => {
+    const cls = s.state === 'hit' ? 'win' : s.state === 'past' ? 'past' : s.state === 'fail' ? 'fail' : '';
+    const val = s.value === null ? '<span class="val nil">—</span>' : `<span class="val">${s.value}</span>`;
+    return `<li class="${cls}"><span class="name">${s.name}</span>${val}</li>`;
+  }).join('');
+}
+
+const RANGES = [
+  { label: '输出 token', center: -0.45, from: -0.54, to: -0.35, text: '−45%' },
+  { label: '成本', center: -0.26, from: -0.36, to: -0.16, text: '−26%' },
+  { label: '耗时', center: -0.41, from: -0.49, to: -0.32, text: '−41%' },
+];
+
+function rangesHtml() {
+  const ax = (v) => ((v + 0.6) / 0.6) * 200;
+  return RANGES.map((r) => `<div class="range-row"><span class="lbl">${r.label}</span>
+    <svg width="100%" height="14" viewBox="0 0 200 14" preserveAspectRatio="none">
+      <line x1="0" y1="7" x2="200" y2="7" stroke="var(--l3)"/>
+      <rect x="${ax(r.from)}" y="3.5" width="${ax(r.to) - ax(r.from)}" height="7" rx="3.5" fill="var(--biz)" opacity=".32"/>
+      <circle cx="${ax(r.center)}" cy="7" r="3" fill="var(--biz)"/>
+    </svg><span class="val">${r.text}</span></div>`).join('')
+    + `<div class="axis"><span></span><span class="ticks"><span>−60%</span><span>−30%</span><span>0</span></span><span></span></div>`;
+}
+
+function ring(pct) {
+  const C = 2 * Math.PI * 21;
+  return `<svg width="52" height="52" role="img" aria-label="注入率 ${pct}%">
+    <circle cx="26" cy="26" r="21" fill="none" stroke="var(--l3)" stroke-width="6"/>
+    <circle cx="26" cy="26" r="21" fill="none" stroke="var(--biz)" stroke-width="6" stroke-linecap="round"
+      stroke-dasharray="${(C * pct / 100).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 26 26)"/>
+    <text x="26" y="30" text-anchor="middle" font-size="12" font-weight="600" fill="var(--pri)">${pct}%</text>
+  </svg>`;
+}
+
+function card(title, action, body) {
+  return `<section class="card"><header><h3>${title}</h3>${action}</header>${body}</section>`;
+}
+
+function cell({ head, mode, levels, stats, compact }) {
+  const diag = `<div class="flow">${pipe({ levels, compact })}<ol class="levels">${levelsHtml({ levels })}</ol></div>`;
+  return `<div class="cell${compact ? ' compact' : ''}">
+    <h2>${head}</h2>
+    <div class="panel">
+      ${card('档位 <span class="q">?</span>', '<button>清除用户层覆盖</button>',
+        `<div class="seg">${['off · 关闭', 'lite · 最轻', 'full · 默认', 'ultra · 最狠']
+          .map((t) => `<button${t.startsWith(mode) ? ' aria-checked="true"' : ''}>${t}</button>`).join('')}</div>`)}
+      ${card('优先级诊断链', '<button>打开配置文件</button>', diag)}
+      ${card('效率统计', '<button class="icon">⋯</button>',
+        `<div class="hero"><span class="num">128</span>
+          <span class="ring">${ring(75)}<span class="txt"><span>注入 96/128</span><span>轮次 <span class="q">?</span></span></span></span>
+        </div>
+        <div><div class="stack-bar"><i class="off" style="flex:12"></i><i style="flex:38;opacity:.45"></i><i style="flex:71"></i><i style="flex:7;opacity:.2"></i></div>
+          <div class="stack-legend"><span>off <em>12</em> <span class="q">?</span></span><span>lite <em>38</em></span><span>full <em>71</em></span><span>ultra <em>7</em></span></div></div>
+        <div class="micro">40.0 KB · 7 切档 · 21 命令</div>
+        <div class="ranges">${rangesHtml()}</div>
+        <footer><span class="caveat">上游基准，非本机测量 <span class="q">?</span></span></footer>`)}
+    </div>
+  </div>`;
+}
+
+const lv = (name, state, value) => ({ name, state, value });
+
+const cells = [
+  cell({
+    head: '① 最常见：配置文件层命中，内置默认值没轮到（整段淡出）',
+    mode: 'full',
+    levels: [lv('环境变量', 'unknown', '?'), lv('配置文件', 'hit', 'full'), lv('内置默认值', 'past', 'full')],
+  }),
+  cell({
+    head: '② 环境变量赢了：用户写的 lite 在配置文件层，画成虚线空心',
+    mode: 'ultra',
+    levels: [lv('环境变量', 'hit', 'ultra'), lv('配置文件', 'miss', 'lite'), lv('内置默认值', 'past', 'full')],
+  }),
+  cell({
+    head: '③ 值非法：配置文件层断开、原值标红，答案落到下一层',
+    mode: 'full',
+    levels: [lv('环境变量', 'unknown', '?'), lv('配置文件', 'fail', 'bogus'), lv('内置默认值', 'hit', 'full')],
+  }),
+  cell({
+    head: '④ 紧凑宽度（420px）：层名在上、值在下，管道缩成 12px 竖槽',
+    mode: 'ultra',
+    compact: true,
+    levels: [lv('环境变量', 'hit', 'ultra'), lv('配置文件', 'miss', 'lite'), lv('内置默认值', 'past', 'full')],
+  }),
+];
+
+document.getElementById('wrap').innerHTML = cells.join('');
+</script>
+</body>
+</html>

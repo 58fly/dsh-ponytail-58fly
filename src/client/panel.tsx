@@ -466,16 +466,19 @@ function openNote(result: ConfigOpenResult): string {
   return '当前没有打开的会话，右侧边栏无处可放。';
 }
 
-/** 管道竖槽宽度：宽栏 20px 放得下 8px 的点，紧凑 12px 只留线。 */
-const PIPE_LANE = 20;
+/** 横向几何来自原型（规格 §渲染契约）：常规 32px 槽、行高 40；紧凑 12px 槽、行高 46。 */
+const PIPE_LANE = 32;
 const PIPE_LANE_COMPACT = 12;
+const PIPE_ROW = 40;
+const PIPE_ROW_COMPACT = 46;
 
-/** 一层的行高由内容决定，管道靠这两条给点留出上下留白。 */
+/** 一层一行：宽栏 40px 高，管道 SVG 与行同高，点正好落在行中线。 */
 const LEVEL_ROW: CSSProperties = {
   display: 'grid',
   gridTemplateColumns: `${String(PIPE_LANE)}px minmax(0, 1fr)`,
   alignItems: 'center',
   columnGap: 10,
+  minHeight: PIPE_ROW,
   minWidth: 0,
 };
 
@@ -486,14 +489,18 @@ const LEVEL_NAME: CSSProperties = {
   color: 'var(--dsw-alias-label-secondary)',
 };
 
-/** 命中层的值：22px 等宽，这一页最大的字，答案永远看得见。 */
+/** 命中层的值：600 22px 等宽，这一页最大的字，答案永远看得见。 */
 const HIT_VALUE: CSSProperties = {
   fontFamily: 'var(--dsw-font-mono)',
+  fontWeight: 600,
   fontSize: 22,
-  lineHeight: '28px',
+  lineHeight: '26px',
   color: 'var(--dsw-alias-label-primary)',
   overflowWrap: 'anywhere',
 };
+
+/** 紧凑宽度下命中值降到 19px，否则 32px 的层名一格放不下。 */
+const HIT_VALUE_COMPACT: CSSProperties = { ...HIT_VALUE, fontSize: 19, lineHeight: '24px' };
 
 /** 没赢的层的值：与小一号说明字同高，读者扫一眼就知道不是答案。 */
 const DIM_VALUE: CSSProperties = {
@@ -504,11 +511,11 @@ const DIM_VALUE: CSSProperties = {
   overflowWrap: 'anywhere',
 };
 
-/** 非法值：说清楚「写了但不认」，用告警色但不加粗。 */
+/** 非法值：说清楚「写了但不认」——危险色加粗，不划掉（值本身是用户写的，不该判死）。 */
 const INVALID_VALUE: CSSProperties = {
   ...DIM_VALUE,
   color: 'var(--dsw-alias-state-danger-primary)',
-  textDecoration: 'line-through',
+  fontWeight: 600,
 };
 
 /**
@@ -517,9 +524,10 @@ const INVALID_VALUE: CSSProperties = {
  * 只按归因状态分支，不看层名——三层用同一套规矩，读者学一次就够。
  * `past` 与 `unknown` 也走 `DIM_VALUE`：前者整行淡出，后者本身就是个 `?`。
  */
-function levelValue(level: AttributionLevel): ReactNode {
-  const text = level.value ?? '—';
-  if (level.state === 'hit') return <span style={HIT_VALUE}>{text}</span>;
+function levelValue(level: AttributionLevel, compact: boolean): ReactNode {
+  // 不可观测写 `?`：浏览器读不到宿主的环境变量，这一层根本没有值可言。
+  const text = level.state === 'unknown' ? '?' : level.value ?? '—';
+  if (level.state === 'hit') return <span style={compact ? HIT_VALUE_COMPACT : HIT_VALUE}>{text}</span>;
   if (level.state === 'invalid') return <span style={INVALID_VALUE}>{text}</span>;
   return <span style={DIM_VALUE}>{text}</span>;
 }
@@ -527,7 +535,7 @@ function levelValue(level: AttributionLevel): ReactNode {
 /** 一层的整行透明度：没轮到的层整段淡出，不再区分有值没值。 */
 function levelOpacity(state: AttributionState): number {
   if (state === 'hit') return 1;
-  if (state === 'past') return 0.42;
+  if (state === 'past') return 0.32;
   return 1;
 }
 
@@ -537,13 +545,15 @@ function levelOpacity(state: AttributionState): number {
  * 五种状态对应五种画法，全部由这一个函数决定——这是「图例」被删掉之后
  * 唯一还带着含义的地方，改这里等于改全部。
  * @param props - 这一段属于哪一层、该层状态、是否紧凑。
- * @returns 一段 20×44（紧凑 12×44）的 SVG。
+ * @returns 一段 32×40（紧凑 12×46）的 SVG。
  */
 function PipeSegment(props: { readonly state: AttributionState; readonly compact: boolean }): ReactNode {
   const { state, compact } = props;
   const lane = compact ? PIPE_LANE_COMPACT : PIPE_LANE;
+  const row = compact ? PIPE_ROW_COMPACT : PIPE_ROW;
   const cx = lane / 2;
-  const mid = 22;
+  const mid = row / 2;
+  const r = compact ? 5 : 7;
   const accent = 'var(--dsw-alias-label-secondary)';
   const faint = 'var(--dsw-alias-border-l3)';
   const danger = 'var(--dsw-alias-state-danger-primary)';
@@ -554,33 +564,47 @@ function PipeSegment(props: { readonly state: AttributionState; readonly compact
   );
 
   return (
-    <svg width={lane} height={44} viewBox={`0 0 ${String(lane)} 44`} aria-hidden="true" focusable="false">
+    <svg width={lane} height={row} viewBox={`0 0 ${String(lane)} ${String(row)}`} aria-hidden="true" focusable="false">
       {state === 'invalid' ? (
         <>
-          {line(0, mid - 7, danger)}
-          {line(mid + 7, 44, danger)}
+          {line(0, mid - r - 2, danger)}
+          {line(mid + r + 2, row, danger)}
         </>
       ) : (
-        line(0, 44, state === 'past' ? faint : accent, state === 'unknown' ? '2 3' : undefined)
+        line(0, row, state === 'past' ? faint : accent, state === 'unknown' ? '2 3' : undefined)
       )}
-      {state === 'hit' ? <circle cx={cx} cy={mid} r={4.5} fill={accent} /> : null}
-      {state === 'miss' ? <circle cx={cx} cy={mid} r={4} fill="none" stroke={accent} strokeWidth={1.5} strokeDasharray="2 2" /> : null}
+      {state === 'hit' ? <circle cx={cx} cy={mid} r={r} fill={accent} /> : null}
+      {state === 'miss' ? <circle cx={cx} cy={mid} r={r - 1.5} fill="none" stroke={accent} strokeWidth={1.5} strokeDasharray="2 2" /> : null}
       {state === 'unknown' ? (
         <text x={cx} y={mid + 4} textAnchor="middle" fontSize={11} fill={accent}>
           ?
         </text>
       ) : null}
-      {state === 'past' ? <circle cx={cx} cy={mid} r={2} fill={faint} /> : null}
+      {state === 'past' ? <circle cx={cx} cy={mid} r={2.5} fill={faint} /> : null}
     </svg>
   );
 }
 
-/** 无障碍描述：一句话说清取值顺序与答案落在哪，卡面上一个字都不写。 */
+/**
+ * 无障碍描述：取值顺序 + 每次层的结局 + 答案落在哪，卡面上一个字都不写。
+ *
+ * 三层各自的状态必须念出来：`role="group"` 里的文字能被读屏读到，但「写了
+ * 却没赢」这件事只有图形在表达，不给它一句话，看不见图的人就少了这张卡唯一
+ * 独有的信息。
+ */
 function pipeLabel(attribution: Attribution): string {
   const order = attribution.levels.map((level) => level.label).join(' → ');
-  const hit = attribution.levels.find((level) => level.state === 'hit');
-  const from = hit === undefined ? attribution.effective : `${String(hit.value)}，来自${hit.label}`;
-  return `取值顺序${order}，先命中的赢；当前生效 ${from}。`;
+  const story = attribution.levels
+    .map((level) => {
+      if (level.state === 'hit') return `${level.label}写 ${String(level.value)}，生效`;
+      if (level.state === 'miss') return `${level.label}写 ${String(level.value)}，没赢`;
+      if (level.state === 'invalid') return `${level.label}写 ${String(level.value)}，不是有效档位`;
+      if (level.state === 'unknown') return `${level.label}不可观测`;
+      // 门到 `past` 只剩「兜底层的值没被采用」，它明明有值，说「没写」是错的。
+      return `${level.label}没轮到`;
+    })
+    .join('；');
+  return `取值顺序${order}。${story}。当前生效 ${attribution.effective}。`;
 }
 
 /**
@@ -601,7 +625,12 @@ function DiagnosisCard(props: {
   const attribution = attribute(diagnosis);
   return (
     <Card title="优先级诊断链" action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
-      <div role="img" aria-label={pipeLabel(attribution)} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      {/*
+        用 `role="group"` 而不是 `role="img"`：`img` 会把子树整体从无障碍树里
+        换掉，层名与值就读不到了，而「配置文件写了 lite 没赢」正是这张卡最想
+        说的那句话。每层自己带一句 aria-label，读屏逐层念出来。
+      */}
+      <div role="group" aria-label={pipeLabel(attribution)} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         {attribution.levels.map((level) => (
           <div
             key={level.level}
@@ -615,12 +644,12 @@ function DiagnosisCard(props: {
             {compact ? (
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                 <span style={LEVEL_NAME}>{level.label}</span>
-                {levelValue(level)}
+                {levelValue(level, compact)}
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
                 <span style={LEVEL_NAME}>{level.label}</span>
-                {levelValue(level)}
+                {levelValue(level, compact)}
               </div>
             )}
           </div>
