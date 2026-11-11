@@ -145,6 +145,14 @@ const MODE_TITLE: Readonly<Record<RuntimeMode, string>> = {
   ultra: '还要质疑需求，动手前先反驳',
 };
 
+/**
+ * 窄栏只留英文档名：四个「off · 关闭」在 320px 会被挤成两行，档名本身够认，
+ * 中文释义还在 `title` 与 `?` 的四档对照里。
+ */
+function modeOptions(compact: boolean): readonly { value: RuntimeMode; label: string; title: string }[] {
+  return RUNTIME_MODES.map((mode) => ({ value: mode, label: compact ? mode : MODE_TEXT[mode], title: MODE_TITLE[mode] }));
+}
+
 /** `?` 悬浮卡里的四档完整对照：一行一档，文案取自 `/ponytail-help`。 */
 const MODE_HELP: Readonly<Record<RuntimeMode, string>> = {
   off: '不在会话开始时自动生效，需要时手写 /ponytail 打开。',
@@ -421,7 +429,7 @@ function ModeCard(props: {
         label="Ponytail 档位"
         value={diagnosis.effective}
         disabled={busy || !snapshot.writable}
-        options={RUNTIME_MODES.map((mode) => ({ value: mode, label: MODE_TEXT[mode], title: MODE_TITLE[mode] }))}
+        options={modeOptions(compact)}
         onChange={(next) => {
           void run(() => props.writeMode(next));
         }}

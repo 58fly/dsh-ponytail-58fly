@@ -3,6 +3,7 @@
  * 样式从简（原型页自己注入）。换掉的是宿主组件的外观实现，不是面板逻辑。
  */
 import { createElement as h, useState } from 'react';
+import { helpState } from '../harness.mjs';
 
 export function Button({ children, variant, size, disabled, onClick, ...rest }) {
   return h('button', { ...rest, disabled, onClick, 'data-variant': variant ?? '', 'data-size': size ?? '' }, children);
@@ -38,7 +39,8 @@ export function PathLabel({ path }) {
 }
 
 export function HoverCard({ anchor, content, inline }) {
-  const [open, setOpen] = useState(false);
+  // 展开态初值来自 harness 的开关：票 06 要有「展开后」的那一帧才能量宽度。
+  const [open, setOpen] = useState(helpState.expanded);
   return h(
     'span',
     {

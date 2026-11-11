@@ -87,3 +87,8 @@ test('诊断卡与效率卡的每个 `?` 都在，且诚实说明没被软化', 
 test('注入率环旁边挂着原始分母', () => {
   assert.match(panel, /\{group\(snapshot\.injections\)\} \/ \{group\(snapshot\.managedTurns\)\}/);
 });
+
+/** 320px 下四个「off · 关闭」会被挤成两行；窄栏只留英文档名。 */
+test('窄栏的档位只用英文档名，不折行', () => {
+  assert.match(panel, /label: compact \? mode : MODE_TEXT\[mode\]/);
+});

@@ -108,6 +108,21 @@ export function clearDispatcher() {
   dispatcherRef.current = null;
 }
 
+/**
+ * 票 06 要量「`?` 展开后会不会出界」。替身 `HoverCard` 的展开态只存在于 React 里，
+ * 而本文件把元素直接串成 HTML、丢了事件——所以直接把展开态打开：渲染前把
+ * `--expand-help` 置真，替身 `useState(expanded)` 的初值就是展开的。
+ */
+let expandHelp = false;
+export function setExpandHelp(next) {
+  expandHelp = next;
+}
+export const helpState = {
+  get expanded() {
+    return expandHelp;
+  },
+};
+
 export async function boot(rootDir, pageFetch, width = 900) {
   panelWidth = width;
   clearDispatcher();
