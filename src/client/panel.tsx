@@ -1174,7 +1174,11 @@ function EfficiencySection(props: { readonly port: StatsPanelPort; readonly comp
               </HelpBubble>
             </span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {/* 环里写比例，旁边写原始分母：比例好读，分母才是能复核的那个数。 */}
               <Ring value={snapshot.injections} total={snapshot.managedTurns} label="注入率" />
+              <span style={MONO_LINE}>
+                {group(snapshot.injections)} / {group(snapshot.managedTurns)}
+              </span>
               <HelpBubble label="注入率怎么算">
                 <span style={HELP_LINE}>注入次数 / 受管轮次。每轮拼进上下文的注入记一次，次数不是字节。</span>
                 <span style={HELP_LINE}>环空着表示还没有注入：没有受管轮次，或一轮都没注入。</span>

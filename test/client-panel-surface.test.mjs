@@ -82,3 +82,8 @@ test('诊断卡与效率卡的每个 `?` 都在，且诚实说明没被软化', 
   assert.match(panel, /浏览器里看不到宿主的环境变量/);
   assert.match(panel, /没写值不代表它没生效/);
 });
+
+/** 用户故事 12：环里是比例，旁边必须有原始分母（`96 / 128`），不能只有百分比。 */
+test('注入率环旁边挂着原始分母', () => {
+  assert.match(panel, /\{group\(snapshot\.injections\)\} \/ \{group\(snapshot\.managedTurns\)\}/);
+});
