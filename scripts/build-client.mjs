@@ -29,6 +29,18 @@ const entry = join(root, 'src', 'client', 'index.ts');
 const outfile = join(root, 'lib', 'client.js');
 
 /**
+ * `src/client/` 里**不含 JSX、不 import 宿主包**的纯模块，另外单独打一份 ESM
+ * 到 `lib/client/`。
+ *
+ * 为什么不是 .tsx：那两个文件是浏览器外壳，import 了 React 与宿主 primitives，
+ * Node 里既 import 不到（宿主的 `clsx` 没装）也无法用 tsc 编译成 ESM
+ * （tsc 只产 CJS，而本包的 package.json 是 `"type": "module"`，CJS 产物连
+ * 相对 import 都会炸）。纯模块没有这个包袱，单独出一份就能被 `node --test`
+ * 直接测——归因是这次改造唯一的纯逻辑，值得这条通道。
+ */
+const PURE_MODULES = ['attribution.ts'];
+
+/**
  * 宿主页面提供（`dsh-web-frontend` 的 staticModules）的模块，必须 external。
  * 名单来源：`dist/assets/index-*.js` 中的模块表字面量。
  */
@@ -102,3 +114,18 @@ if (unknown.length > 0) {
   );
 }
 console.log(`external requires: ${[...reqs].sort().join(', ') || '(无)'}`);
+
+/* 纯模块单独出一份 ESM：单文件、不打包、不 external——它们本来就零依赖。 */
+await mkdir(join(root, 'lib', 'client'), { recursive: true });
+for (const file of PURE_MODULES) {
+  await build({
+    entryPoints: [join(root, 'src', 'client', file)],
+    outfile: join(root, 'lib', 'client', file.replace(/\.ts$/, '.js')),
+    bundle: true,
+    format: 'esm',
+    platform: 'neutral',
+    target: ['es2022'],
+    logLevel: 'warning',
+  });
+}
+console.log(`pure client modules -> lib/client/ (${PURE_MODULES.join(', ')})`);

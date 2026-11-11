@@ -19,7 +19,6 @@
  * @module
  */
 import {
-  Fragment,
   useEffect,
   useRef,
   useState,
@@ -27,15 +26,9 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { Button, HoverCard, PathLabel, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, HoverCard, SegmentedControl, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import { RUNTIME_MODES, type RuntimeMode } from '../l0/mode.js';
-import {
-  DIAGNOSIS_PATCH_FROM_PROFILE,
-  diagnose,
-  type Diagnosis,
-  type DiagnosisLevel,
-  type DiagnosisState,
-} from '../l0/diagnosis.js';
+import { DIAGNOSIS_PATCH_FROM_PROFILE, diagnose, type Diagnosis, type DiagnosisLevel } from '../l0/diagnosis.js';
 import {
   BASELINE,
   BASELINE_NO_ACTIVE,
@@ -46,6 +39,7 @@ import {
   type SavingsProjection,
 } from '../stats/baseline.js';
 import type { StatsView } from '../stats/types.js';
+import { attribute, type Attribution, type AttributionLevel, type AttributionState } from './attribution.js';
 import { BarList, Ring } from './charts.js';
 
 /**
@@ -177,37 +171,6 @@ function overrideText(diagnosis: Diagnosis): string {
   }
   return '无覆盖';
 }
-
-/**
- * 卡底那句覆盖总结该说哪一种事实。
- *
- * 按**补丁层自己的状态**分支，不按 `overriddenBy`：后者只说「谁盖住了补丁层」，
- * 补丁层压根没写值时会说成「你写的被盖住」，而用户其实没写过。
- * @param diagnosis - `diagnose()` 的结论。
- * @returns 一句话；补丁层既没被盖也没出问题时返回 `null`。
- */
-function patchStory(diagnosis: Diagnosis): string | null {
-  const patchRow = diagnosis.rows.find((row) => row.level === 'patch');
-  if (patchRow === undefined) return null;
-  if (patchRow.state === 'shadowed') {
-    return diagnosis.overriddenBy === 'env'
-      ? '你写的补丁层正被环境变量盖住：面板写入的是补丁层，读到的生效值来自宿主进程。'
-      : '你写的补丁层正被更高优先级的补丁盖住：面板写入的是补丁层，读到的生效值来自别处。';
-  }
-  if (patchRow.state === 'invalid') {
-    return `你写的「${patchRow.value ?? UNSET_VALUE}」不是合法档位，已被忽略，生效值来自更低一层。`;
-  }
-  return null;
-}
-
-/** 诊断状态对应的 Tag 语气与中文说明。 */
-const STATE_TEXT: Readonly<Record<DiagnosisState, { tone: 'success' | 'warning' | 'danger' | 'quiet' | 'info'; text: string }>> = {
-  hit: { tone: 'success', text: '生效' },
-  shadowed: { tone: 'warning', text: '被覆盖' },
-  invalid: { tone: 'danger', text: '值非法' },
-  absent: { tone: 'quiet', text: '未设置' },
-  unknown: { tone: 'info', text: '不可观测' },
-};
 
 /** 面板标题：设置页左侧导航条目只留品牌名，版本后缀不上标题。 */
 const TITLE = 'Ponytail';
@@ -342,12 +305,6 @@ const HELP_TRIGGER: CSSProperties = {
 /** 状态行里的一项：等宽、可换行但不撑破卡片。 */
 const STATUS_FACT: CSSProperties = { fontFamily: 'var(--dsw-font-mono)', minWidth: 0, overflowWrap: 'anywhere' };
 
-/** 诊断卡的规则句，逐字取自票 03。 */
-const DIAGNOSIS_RULE = '取值顺序 环境变量 → Profile 补丁 → 内置兜底，先命中的赢';
-
-/** 图例的顺序：取值链的顺序，不是 `STATE_TEXT` 的声明顺序。 */
-const LEGEND_STATES: readonly DiagnosisState[] = ['hit', 'shadowed', 'invalid', 'absent', 'unknown'];
-
 /** 表格的公共骨架：`fixed` 布局 + 不给 `minWidth`，长路径才不会把卡撑出横向滚动条。 */
 const TABLE_STYLE: CSSProperties = { width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' };
 
@@ -362,22 +319,6 @@ const CELL_STYLE: CSSProperties = {
   borderTop: '0.5px solid var(--dsw-alias-border-l3)',
   color: 'var(--dsw-alias-label-secondary)',
 };
-
-/** 取值列：等宽字体；超长值自己换行，不撑表格。 */
-const VALUE_CELL: CSSProperties = { ...CELL_STYLE, fontFamily: 'var(--dsw-font-mono)', overflowWrap: 'anywhere' };
-
-/** 紧凑模式的备注行：跨满整行，小一号字，读数排在它上面一行。 */
-const NOTE_CELL: CSSProperties = {
-  ...CELL_STYLE,
-  paddingTop: 0,
-  borderTop: 'none',
-  fontSize: 11,
-  lineHeight: '17px',
-  color: 'var(--dsw-alias-label-tertiary)',
-};
-
-/** 未设置时取值列的占位，与「未设置」态用同一个词，免得读者要记两套说法。 */
-const UNSET_VALUE = '未设置';
 
 /**
  * 档位卡（票 02）：分段单选 + 标题旁 `?` 完整对照 + 单行状态行 + 卡头右侧清除按钮。
@@ -525,12 +466,129 @@ function openNote(result: ConfigOpenResult): string {
   return '当前没有打开的会话，右侧边栏无处可放。';
 }
 
+/** 管道竖槽宽度：宽栏 20px 放得下 8px 的点，紧凑 12px 只留线。 */
+const PIPE_LANE = 20;
+const PIPE_LANE_COMPACT = 12;
+
+/** 一层的行高由内容决定，管道靠这两条给点留出上下留白。 */
+const LEVEL_ROW: CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: `${String(PIPE_LANE)}px minmax(0, 1fr)`,
+  alignItems: 'center',
+  columnGap: 10,
+  minWidth: 0,
+};
+
+/** 层名：小一号的说明字，不抢值的注意力。 */
+const LEVEL_NAME: CSSProperties = {
+  fontSize: 12,
+  lineHeight: '16px',
+  color: 'var(--dsw-alias-label-secondary)',
+};
+
+/** 命中层的值：22px 等宽，这一页最大的字，答案永远看得见。 */
+const HIT_VALUE: CSSProperties = {
+  fontFamily: 'var(--dsw-font-mono)',
+  fontSize: 22,
+  lineHeight: '28px',
+  color: 'var(--dsw-alias-label-primary)',
+  overflowWrap: 'anywhere',
+};
+
+/** 没赢的层的值：与小一号说明字同高，读者扫一眼就知道不是答案。 */
+const DIM_VALUE: CSSProperties = {
+  fontFamily: 'var(--dsw-font-mono)',
+  fontSize: 12,
+  lineHeight: '16px',
+  color: 'var(--dsw-alias-label-tertiary)',
+  overflowWrap: 'anywhere',
+};
+
+/** 非法值：说清楚「写了但不认」，用告警色但不加粗。 */
+const INVALID_VALUE: CSSProperties = {
+  ...DIM_VALUE,
+  color: 'var(--dsw-alias-state-danger-primary)',
+  textDecoration: 'line-through',
+};
+
 /**
- * 诊断卡（票 03）：规则句 + 五态图例一行，下面是从上到下的三层步骤表格。
+ * 一层的值怎么画。
  *
- * 表格恒按 `diagnosis.rows` 的顺序画（env → patch → fallback），不筛掉没值的层——
- * 「哪层没设」本身就是要看的信息。宽栏四列带备注；紧凑三列，备注挪到行下方，
- * 两种宽度都不丢 `note`。
+ * 只按归因状态分支，不看层名——三层用同一套规矩，读者学一次就够。
+ * `past` 与 `unknown` 也走 `DIM_VALUE`：前者整行淡出，后者本身就是个 `?`。
+ */
+function levelValue(level: AttributionLevel): ReactNode {
+  const text = level.value ?? '—';
+  if (level.state === 'hit') return <span style={HIT_VALUE}>{text}</span>;
+  if (level.state === 'invalid') return <span style={INVALID_VALUE}>{text}</span>;
+  return <span style={DIM_VALUE}>{text}</span>;
+}
+
+/** 一层的整行透明度：没轮到的层整段淡出，不再区分有值没值。 */
+function levelOpacity(state: AttributionState): number {
+  if (state === 'hit') return 1;
+  if (state === 'past') return 0.42;
+  return 1;
+}
+
+/**
+ * 管道的一段竖线。
+ *
+ * 五种状态对应五种画法，全部由这一个函数决定——这是「图例」被删掉之后
+ * 唯一还带着含义的地方，改这里等于改全部。
+ * @param props - 这一段属于哪一层、该层状态、是否紧凑。
+ * @returns 一段 20×44（紧凑 12×44）的 SVG。
+ */
+function PipeSegment(props: { readonly state: AttributionState; readonly compact: boolean }): ReactNode {
+  const { state, compact } = props;
+  const lane = compact ? PIPE_LANE_COMPACT : PIPE_LANE;
+  const cx = lane / 2;
+  const mid = 22;
+  const accent = 'var(--dsw-alias-label-secondary)';
+  const faint = 'var(--dsw-alias-border-l3)';
+  const danger = 'var(--dsw-alias-state-danger-primary)';
+
+  // 线上半段与下半段分开画：非法层要在中间留一个缺口，缺口就是「断开」。
+  const line = (y1: number, y2: number, stroke: string, dash?: string): ReactNode => (
+    <line x1={cx} y1={y1} x2={cx} y2={y2} stroke={stroke} strokeWidth={1.5} strokeDasharray={dash} />
+  );
+
+  return (
+    <svg width={lane} height={44} viewBox={`0 0 ${String(lane)} 44`} aria-hidden="true" focusable="false">
+      {state === 'invalid' ? (
+        <>
+          {line(0, mid - 7, danger)}
+          {line(mid + 7, 44, danger)}
+        </>
+      ) : (
+        line(0, 44, state === 'past' ? faint : accent, state === 'unknown' ? '2 3' : undefined)
+      )}
+      {state === 'hit' ? <circle cx={cx} cy={mid} r={4.5} fill={accent} /> : null}
+      {state === 'miss' ? <circle cx={cx} cy={mid} r={4} fill="none" stroke={accent} strokeWidth={1.5} strokeDasharray="2 2" /> : null}
+      {state === 'unknown' ? (
+        <text x={cx} y={mid + 4} textAnchor="middle" fontSize={11} fill={accent}>
+          ?
+        </text>
+      ) : null}
+      {state === 'past' ? <circle cx={cx} cy={mid} r={2} fill={faint} /> : null}
+    </svg>
+  );
+}
+
+/** 无障碍描述：一句话说清取值顺序与答案落在哪，卡面上一个字都不写。 */
+function pipeLabel(attribution: Attribution): string {
+  const order = attribution.levels.map((level) => level.label).join(' → ');
+  const hit = attribution.levels.find((level) => level.state === 'hit');
+  const from = hit === undefined ? attribution.effective : `${String(hit.value)}，来自${hit.label}`;
+  return `取值顺序${order}，先命中的赢；当前生效 ${from}。`;
+}
+
+/**
+ * 诊断卡（票 01）：三层竖下来的管道，命中处就是答案。
+ *
+ * 卡面上只有层名与值，没有规则句、没有图例、没有列标题——三层自上而下
+ * 本身就是取值顺序，实心点本身就说明「停在这里了」。规则与五态的完整说法
+ * 由 `aria-label` 承载，需要读文字的人向读屏要，需要看图的人看管道。
  * @param props - 诊断结论与是否紧凑。
  * @returns 诊断卡节点。
  */
@@ -540,73 +598,34 @@ function DiagnosisCard(props: {
   readonly openConfigFile?: (() => ConfigOpenResult) | undefined;
 }): ReactNode {
   const { diagnosis, compact, openConfigFile } = props;
-  const story = patchStory(diagnosis);
+  const attribution = attribute(diagnosis);
   return (
     <Card title="优先级诊断链" action={openConfigFile === undefined ? null : <ConfigFileAction open={openConfigFile} />} compact={compact}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-          minWidth: 0,
-          fontSize: 12,
-          lineHeight: '18px',
-          color: 'var(--dsw-alias-label-secondary)',
-        }}
-      >
-        <span style={{ minWidth: 0 }}>{DIAGNOSIS_RULE}</span>
-        {LEGEND_STATES.map((state) => (
-          <Tag key={state} tone={STATE_TEXT[state].tone}>
-            {STATE_TEXT[state].text}
-          </Tag>
+      <div role="img" aria-label={pipeLabel(attribution)} style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {attribution.levels.map((level) => (
+          <div
+            key={level.level}
+            style={{
+              ...LEVEL_ROW,
+              gridTemplateColumns: `${String(compact ? PIPE_LANE_COMPACT : PIPE_LANE)}px minmax(0, 1fr)`,
+              opacity: levelOpacity(level.state),
+            }}
+          >
+            <PipeSegment state={level.state} compact={compact} />
+            {compact ? (
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={LEVEL_NAME}>{level.label}</span>
+                {levelValue(level)}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
+                <span style={LEVEL_NAME}>{level.label}</span>
+                {levelValue(level)}
+              </div>
+            )}
+          </div>
         ))}
       </div>
-
-      <table style={TABLE_STYLE}>
-        <thead>
-          <tr>
-            <th style={{ ...CELL_STYLE, width: '5em', borderTop: 'none' }}>状态</th>
-            <th style={{ ...CELL_STYLE, width: '40%', borderTop: 'none' }}>来源</th>
-            <th style={{ ...CELL_STYLE, width: '5em', borderTop: 'none' }}>取值</th>
-            {compact ? null : <th style={{ ...CELL_STYLE, borderTop: 'none' }}>备注</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {diagnosis.rows.map((row) => {
-            const state = STATE_TEXT[row.state];
-            return (
-              <Fragment key={row.level}>
-                <tr title={compact ? (row.note ?? undefined) : undefined}>
-                  <td style={CELL_STYLE}>
-                    <Tag tone={state.tone}>{state.text}</Tag>
-                  </td>
-                  <td style={CELL_STYLE}>
-                    {/* td 必须留在 table-cell：改成 flex 会脱离列宽计算，fixed 布局就失效了。 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                      <span style={{ color: 'var(--dsw-alias-label-primary)' }}>{row.label}</span>
-                      <PathLabel path={row.location} />
-                    </div>
-                  </td>
-                  <td style={VALUE_CELL}>{row.value ?? UNSET_VALUE}</td>
-                  {compact ? null : <td style={CELL_STYLE}>{row.note ?? ''}</td>}
-                </tr>
-                {compact && row.note !== null ? (
-                  <tr>
-                    <td colSpan={3} style={NOTE_CELL}>
-                      {row.note}
-                    </td>
-                  </tr>
-                ) : null}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
-
-      {story === null ? null : (
-        <p style={{ margin: 0, fontSize: 12, lineHeight: '18px', color: 'var(--dsw-alias-label-secondary)' }}>{story}</p>
-      )}
     </Card>
   );
 }
