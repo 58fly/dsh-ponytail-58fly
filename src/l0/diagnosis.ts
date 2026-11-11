@@ -148,9 +148,15 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
   const effective: RuntimeMode = value.mode ?? DEFAULT_MODE;
 
   // 补丁层的有效值：用户层优先，用户层没写时看组合层。
-  const patchMode = user.mode ?? base.mode;
-  const patchRaw = user.raw ?? base.raw;
-  const patchOrigin = user.mode !== null ? '用户层' : base.mode !== null ? '组合层' : null;
+  //
+  // `patchRaw` 与 `patchMode` 必须取自**同一段投影**——各做一次 `??` 就会跨层
+  // 拼接：用户写了 `bogus`、组合层是 `full` 时，raw 是用户的垃圾值而 mode 却是
+  // 组合层的合法值，于是这一行被报成 `hit`，面板显示一个不存在的档位正在生效。
+  // 判据只看用户层有没有写（`present`：空白串按没写算），写了就整段用用户的，
+  // 含「解析失败」这个结果。
+  const patchFromUser = user.present;
+  const patchRaw = patchFromUser ? user.raw : base.raw;
+  const patchMode = patchFromUser ? user.mode : base.mode;
 
   // 生效值既不来自补丁层、也不来自兜底值——那只能是 env。
   const envInferred = effective !== (patchMode ?? DEFAULT_MODE);
@@ -204,7 +210,7 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
       location: LOCATIONS.patch,
       value: patchRaw,
       state: 'hit',
-      note: patchOrigin === '组合层' ? DIAGNOSIS_PATCH_FROM_PROFILE : null,
+      note: patchFromUser ? null : DIAGNOSIS_PATCH_FROM_PROFILE,
     });
   } else {
     rows.push({
@@ -245,7 +251,7 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
   return {
     rows,
     effective,
-    overriddenBy: overriddenBy(user, base, envInferred, patchMode, effective),
+    overriddenBy: overriddenBy(patchRaw, envInferred, patchMode, effective),
   };
 }
 
@@ -255,22 +261,20 @@ export function diagnose(input: DiagnosisInput): Diagnosis {
  * 只按**补丁层自己的状态**答，不看 `effective` 归谁：补丁层被盖住就是被盖住，
  * 哪怕用户层压根没写过值、生效值其实来自 env 顶掉的兜底——那种情况说出
  * 「被环境变量覆盖」会多解释一层，读者会以为自己在补丁里写过东西。
- * @param user - 用户层读出的值。
- * @param base - 组合层读出的值。
+ * @param patchRaw - 补丁层写下的原文（用户层优先，回落组合层；与 `patchMode` 同源）。
  * @param envInferred - env 是否被反推为命中。
  * @param patchMode - 补丁层的有效档位（用户层优先，回落组合层）。
  * @param effective - 最终生效档位。
  * @returns 盖住补丁层的层名；没人盖就是 `null`。
  */
 function overriddenBy(
-  user: FieldReading,
-  base: FieldReading,
+  patchRaw: string | null,
   envInferred: boolean,
   patchMode: RuntimeMode | null,
   effective: RuntimeMode,
 ): DiagnosisLevel | null {
   // 补丁层压根没写值：没有「被盖住的东西」，兜底被 env 顶掉也不该算到补丁层头上。
-  if (patchMode === null && (user.raw ?? base.raw) === null) return null;
+  if (patchMode === null && patchRaw === null) return null;
   if (envInferred) return 'env';
   return patchMode !== effective ? 'patch' : null;
 }

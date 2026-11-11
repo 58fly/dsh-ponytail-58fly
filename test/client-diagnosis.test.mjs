@@ -149,3 +149,39 @@ test('哨兵：diagnosis 的四处字面量与 config/priority 逐字一致', ()
   assert.equal(DIAGNOSIS_FALLBACK_LOCATION, FALLBACK_LOCATION);
   assert.equal(DIAGNOSIS_INVALID_PROBLEM, INVALID_PROBLEM);
 });
+
+test('回归 #05：用户层非法值 + 组合层有无害默认值 → 该行 invalid，非法值不被报成生效', () => {
+  // 宿主投影：user 是用户在设置页/补丁里写的原文，base 是组合层的默认值。
+  // 两者同时存在时，用户层的垃圾值必须判非法，而不是让组合层的值替它顶成 hit。
+  const diagnosis = diagnose({
+    base: { defaultMode: 'full' },
+    user: { defaultMode: 'bogus' },
+    value: { defaultMode: 'full' },
+  });
+  assert.deepEqual(states(diagnosis), { env: 'unknown', patch: 'invalid', fallback: 'hit' });
+  assert.equal(row(diagnosis, 'patch').value, 'bogus');
+  assert.equal(diagnosis.effective, 'full');
+  // 补丁层自己写了值却没生效，`overriddenBy` 就指它；具体被谁顶掉看兜底行是 hit。
+  assert.equal(diagnosis.overriddenBy, 'patch');
+});
+
+test('回归 #05：用户层与组合层都合法时值同源，不跨层拼接', () => {
+  const diagnosis = diagnose({
+    base: { defaultMode: 'lite' },
+    user: { defaultMode: 'ultra' },
+    value: { defaultMode: 'ultra' },
+  });
+  assert.deepEqual(states(diagnosis), { env: 'unknown', patch: 'hit', fallback: 'shadowed' });
+  assert.equal(row(diagnosis, 'patch').value, 'ultra');
+  assert.equal(row(diagnosis, 'patch').note, null);
+});
+
+test('回归 #05：用户层非法时，组合层的注脚不能被挪到用户层头上', () => {
+  const diagnosis = diagnose({
+    base: { defaultMode: 'lite' },
+    user: { defaultMode: 'bogus' },
+    value: { defaultMode: 'lite' },
+  });
+  assert.equal(row(diagnosis, 'patch').state, 'invalid');
+  assert.equal(row(diagnosis, 'patch').note, DIAGNOSIS_INVALID_PROBLEM);
+});
