@@ -224,7 +224,8 @@ export function installGainCommand(ctx: Context, stats?: StatsHandle): void {
     scope.commands.register({
       name: COMMAND_NAME,
       description: '查看本机 Ponytail 效率统计（受管轮次、注入次数、预估区间）',
-      input: { hint: '', attachments: false },
+      // 不声明 input：这条命令不吃参数。宿主拒绝空 hint（dsh-commands 的
+      // normalizeDefinition 抛 input hint must not be empty），写个假 hint 又不诚实。
       handler: () => {
         if (stats === undefined) {
           return {

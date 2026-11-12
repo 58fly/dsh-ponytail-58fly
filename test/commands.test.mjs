@@ -176,3 +176,25 @@ test('卸掉插件后命令从表里消失，不留幽灵', async () => {
 
   await ctx.fiber.dispose();
 });
+
+test('/ponytail-gain 也在命令表里，且不需要参数', async () => {
+  const { ctx } = await bootHost();
+  const fiber = await ctx.plugin(Ponytail);
+  await settle();
+
+  // 这条命令曾经整条注册不上：曾经的 input.hint 是空串，宿主
+  // normalizeDefinition 判它不合法并抛错，报错被接线的 catch 转成一条 warn，
+  // 表现成「命令凭空消失、敲了只落到同名 skill」。这条断言就是钉死它。
+  const names = ctx.commands.list(AGENT).map((descriptor) => descriptor.name);
+  assert.ok(names.includes('ponytail-gain'), '命令表里必须有 ponytail-gain，实得：' + names.join(', '));
+
+  const definition = ctx.commands.find(AGENT, 'ponytail-gain');
+  assert.equal(definition.input, undefined, '不吃参数的命令不该声明 input');
+
+  const result = await invoke(definition, '');
+  assert.equal(result.kind, 'success', JSON.stringify(result));
+  assert.match(result.text, /还没开始计数/);
+
+  await fiber.dispose();
+  await ctx.fiber.dispose();
+});
