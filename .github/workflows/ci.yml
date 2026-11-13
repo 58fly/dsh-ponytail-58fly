@@ -2,7 +2,7 @@
 #
 #   quality  —— 在当前 dsh（0.2.2-rc.1）上，四条链路是否全绿：typecheck / build / verify / test，
 #               外加三道内容门：check:skills（技能契约）/ check:readme（README 骨架）/ check:matrix（区间覆盖）。
-#   compat   —— 在 engines.dsh 声明的整个范围上（0.2.0-rc.1 … 0.2.2-rc.1，共 15 个已发布版本）
+#   compat   —— 在 engines.dsh 声明的整个范围上（0.2.0-rc.1 … 0.2.2-rc.2，共 16 个已发布版本）
 #               逐格跑四条链路，并在每格真装一次、真装配一次。矩阵与 registry 的一致性由
 #               scripts/dsh-matrix.mjs 断言（engines.dsh 改了而本表没跟上 = 红）。
 #               注意 build 必须跑：TS2742（声明文件写出 schemastery 的物理路径）只在旧版
@@ -93,7 +93,7 @@ jobs:
       fail-fast: false
       matrix:
         # engines.dsh 写的是 >=0.2.0-rc.1 <0.3.0-0。这里**穷举** npm 上落在这个区间里的
-        # 全部 15 个版本，而不是抽两格：区间是给用户看的承诺，承诺的每一格都该有人跑过。
+        # 全部 16 个版本，而不是抽两格：区间是给用户看的承诺，承诺的每一格都该有人跑过。
         # 新增版本时由 scripts/dsh-matrix.mjs 从 registry 算出来并断言与本表一致
         # （见 quality job 的"矩阵已覆盖 registry 全系列"一步）。
         dsh:
@@ -112,6 +112,7 @@ jobs:
           - '0.2.2-alpha.2'
           - '0.2.2-alpha.3'
           - '0.2.2-rc.1'
+          - '0.2.2-rc.2'
     steps:
       - uses: actions/checkout@v4
 
